@@ -617,8 +617,8 @@ app.get('/api/tutorials/:id/validate', (req, res) => {
         return
       }
       try {
-        const { data: sd } = matter(fs.readFileSync(stepPath, 'utf8'))
-        if (!sd.title) errors.push({ file: step.file, message: 'Missing "title" in frontmatter' })
+        matter(fs.readFileSync(stepPath, 'utf8'))
+        // Title comes from index.md steps array — no frontmatter required in step files
       } catch (e) {
         errors.push({ file: step.file, message: `YAML parse error: ${e.message}` })
       }
