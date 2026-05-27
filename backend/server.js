@@ -19,6 +19,10 @@ const TUTORIALS_DIR = path.join(__dirname, '..', 'tutorials')
 
 // Parse a tutorial's index.md and return { id, title, description,
 // difficulty, time, tags, environment, steps, body, course }
+function courseDisplayName(dirName) {
+  return dirName.replace(/_/g, ' ')
+}
+
 function loadTutorialMeta(courseDir, tutorialId) {
   const indexPath = path.join(TUTORIALS_DIR, courseDir, tutorialId, 'index.md')
   if (!fs.existsSync(indexPath)) return null
@@ -27,7 +31,7 @@ function loadTutorialMeta(courseDir, tutorialId) {
     return { 
       ...data, 
       id: data.id || tutorialId, 
-      course: courseDir,
+      course: courseDisplayName(courseDir),
       body: content.trim() 
     }
   } catch (e) {
