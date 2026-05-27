@@ -475,28 +475,84 @@ app.post('/api/tutorials/import', (req, res) => {
   })
 })
 
+function toTitleCase(str) {
+  return str.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
+function autoDiscoverSteps(dir) {
+  // Collect intro.md, stepN.md (sorted), finish.md — common KillerCoda/SC101 naming
+  const candidates = ['intro.md']
+  const stepFiles = fs.readdirSync(dir)
+    .filter((f) => /^step\d+\.md$/i.test(f))
+    .sort((a, b) => {
+      const na = parseInt(a.match(/\d+/)[0]), nb = parseInt(b.match(/\d+/)[0])
+      return na - nb
+    })
+  candidates.push(...stepFiles)
+  if (fs.existsSync(path.join(dir, 'finish.md'))) candidates.push('finish.md')
+  return candidates
+    .filter((f) => fs.existsSync(path.join(dir, f)))
+    .map((f) => ({ file: f, title: toTitleCase(f.replace(/\.md$/, '')) }))
+}
+
 function validateSc101Tutorial(dir) {
   const errors = []
   const warnings = []
+  const folderName = path.basename(dir)
   const indexPath = path.join(dir, 'index.md')
+
   if (!fs.existsSync(indexPath)) {
     errors.push('Missing index.md — every tutorial must have an index.md with YAML frontmatter (id, title, description, steps).')
     return { errors, warnings }
   }
+
   try {
-    const { data, content } = matter(fs.readFileSync(indexPath, 'utf8'))
-    if (!data.id)    errors.push('index.md frontmatter missing required field: id')
-    if (!data.title) errors.push('index.md frontmatter missing required field: title')
-    if (!data.description) warnings.push('index.md frontmatter missing recommended field: description')
+    const raw = fs.readFileSync(indexPath, 'utf8')
+    const { data, content } = matter(raw)
+    let patched = false
+
+    // Auto-fill missing id
+    if (!data.id) {
+      data.id = folderName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+      warnings.push(`Missing "id" in frontmatter — auto-filled as "${data.id}"`)
+      patched = true
+    }
+
+    // Auto-fill missing title
+    if (!data.title) {
+      data.title = toTitleCase(folderName)
+      warnings.push(`Missing "title" in frontmatter — auto-filled as "${data.title}"`)
+      patched = true
+    }
+
+    if (!data.description) {
+      warnings.push('Missing recommended field "description" in frontmatter')
+    }
+
+    // Auto-discover steps if missing or empty
     if (!Array.isArray(data.steps) || data.steps.length === 0) {
-      errors.push('index.md frontmatter must include a non-empty "steps" array')
+      const discovered = autoDiscoverSteps(dir)
+      if (discovered.length === 0) {
+        errors.push('No steps defined in frontmatter and no step files (intro.md, step1.md…) found in the tutorial directory')
+      } else {
+        data.steps = discovered
+        warnings.push(`Missing "steps" in frontmatter — auto-discovered ${discovered.length} step file(s): ${discovered.map((s) => s.file).join(', ')}`)
+        patched = true
+      }
     } else {
       for (const step of data.steps) {
         if (!step.file) { errors.push(`Step entry missing "file" key: ${JSON.stringify(step)}`); continue }
         if (!fs.existsSync(path.join(dir, step.file))) errors.push(`Step file not found: ${step.file}`)
       }
     }
+
     if (!content.trim()) warnings.push('index.md has no body text')
+
+    // Rewrite index.md with auto-filled fields so loadTutorialMeta picks them up
+    if (patched && errors.length === 0) {
+      const newContent = matter.stringify(content, data)
+      fs.writeFileSync(indexPath, newContent, 'utf8')
+    }
   } catch (e) {
     errors.push(`Failed to parse index.md: ${e.message}`)
   }
