@@ -786,3 +786,4 @@ sc101-lab-interface/
 - [ ] Session expiry + auto-cleanup
 - [ ] Mobile responsive layout
 - [ ] **Award page** — certificate download when all tutorials are completed
+- [ ] **Download course from GitHub** — UI + backend to fetch a course folder from a GitHub repo URL and install it into `tutorials/` without restart
