@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import ThemeToggle from '../components/ThemeToggle/ThemeToggle.jsx'
+import SettingsPanel from '../components/SettingsPanel/SettingsPanel.jsx'
 
 export default function LoginScreen({ onSession }) {
   const [tab, setTab] = useState('new')
@@ -30,10 +30,11 @@ export default function LoginScreen({ onSession }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: username.trim() }),
       })
-      if (!res.ok) throw new Error((await res.json()).error)
-      const session = await res.json()
-      localStorage.setItem('sc101_session_id', session.id)
-      onSession(session)
+      let data
+      try { data = await res.json() } catch { data = {} }
+      if (!res.ok) throw new Error(data.error || `Server error ${res.status}`)
+      localStorage.setItem('sc101_session_id', data.id)
+      onSession(data)
     } catch (err) {
       setError(err.message)
       setLoading(false)
@@ -58,7 +59,7 @@ export default function LoginScreen({ onSession }) {
           <span className="sc101-nav-logo">SC</span>
           SC101 Lab Interface
         </span>
-        <ThemeToggle />
+        <SettingsPanel />
       </nav>
 
       {/* Centred card */}

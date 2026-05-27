@@ -43,7 +43,7 @@ function escapeAttr(s) {
 
 marked.use({ breaks: true })
 
-export default function TutorialPane({ session, onRunCommand }) {
+export default function TutorialPane({ session, onRunCommand, onProgress }) {
   const tutorialId = session?.tutorialId ?? TUTORIAL_ID
   const [meta, setMeta] = useState(null)
   const [stepIndex, setStepIndex] = useState(session?.currentStep ?? 0)
@@ -80,6 +80,11 @@ export default function TutorialPane({ session, onRunCommand }) {
       body: JSON.stringify({ currentStep: stepIndex }),
     }).catch(() => {})
   }, [stepIndex, session?.id])
+
+  // Report progress upward whenever step or meta changes
+  useEffect(() => {
+    onProgress?.({ step: stepIndex, meta })
+  }, [stepIndex, meta]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const navigateTo = (i) => {
     const total = meta?.steps?.length ?? 0

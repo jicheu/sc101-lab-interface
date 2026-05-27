@@ -6,6 +6,7 @@ const { WebSocketServer, WebSocket } = require('ws')
 const path = require('path')
 const fs = require('fs')
 const pty = require('node-pty')
+const { exec } = require('child_process')
 const { ensureContainerForUser, stopAllContainers, onConnect, onDisconnect } = require('./lxd')
 const sessions = require('./sessions')
 
@@ -30,10 +31,15 @@ app.get('/api/sessions/:id', (req, res) => {
 })
 
 app.post('/api/sessions', (req, res) => {
-  const { username, tutorialId } = req.body || {}
-  if (!username || !username.trim()) return res.status(400).json({ error: 'username required' })
-  const session = sessions.create({ username: username.trim(), tutorialId })
-  res.status(201).json(session)
+  try {
+    const { username, tutorialId } = req.body || {}
+    if (!username || !username.trim()) return res.status(400).json({ error: 'username required' })
+    const session = sessions.create({ username: username.trim(), tutorialId })
+    res.status(201).json(session)
+  } catch (err) {
+    console.error('[api] POST /api/sessions error:', err)
+    res.status(500).json({ error: err.message || 'Internal server error' })
+  }
 })
 
 app.patch('/api/sessions/:id', (req, res) => {
@@ -67,7 +73,37 @@ app.get('/api/tutorials/:id/step/:index', (req, res) => {
   res.json({ markdown: fs.readFileSync(mdPath, 'utf8') })
 })
 
-// ── WebSocket terminal (per session) ─────────────────────────────────────────
+// ── LXC image export ─────────────────────────────────────────────────────────
+
+app.get('/api/sessions/:id/export', (req, res) => {
+  const session = sessions.get(req.params.id)
+  if (!session) return res.status(404).json({ error: 'Session not found' })
+
+  const { containerName } = session
+  const tmpFile = `/tmp/${containerName}-${Date.now()}.tar.gz`
+  const filename = `${containerName}.tar.gz`
+
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+  res.setHeader('Content-Type', 'application/gzip')
+  // Inform the client that this may take a while
+  res.setHeader('X-Content-Type-Options', 'nosniff')
+
+  exec(`lxc export ${containerName} ${tmpFile}`, { timeout: 600_000 }, (err) => {
+    if (err) {
+      try { fs.unlinkSync(tmpFile) } catch {}
+      if (!res.headersSent) return res.status(500).json({ error: err.message })
+      return res.end()
+    }
+    const stat = fs.statSync(tmpFile)
+    res.setHeader('Content-Length', stat.size)
+    const stream = fs.createReadStream(tmpFile)
+    stream.pipe(res)
+    stream.on('close', () => { try { fs.unlinkSync(tmpFile) } catch {} })
+    stream.on('error', () => { try { fs.unlinkSync(tmpFile) } catch {} })
+  })
+})
+
+
 
 const server = http.createServer(app)
 

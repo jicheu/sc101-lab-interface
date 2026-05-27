@@ -611,3 +611,175 @@ body.is-dark pre[class*='language-'] {
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover { background-color: var(--sc101-fg-muted); }
+
+/* ----------------------------------------------------------
+   10. Settings panel (gear popover)
+   ---------------------------------------------------------- */
+
+/* Gear button in the nav */
+.sc101-gear-btn {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.45);
+  border-radius: var(--sc101-radius);
+  color: rgba(255,255,255,0.85);
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0.25rem 0.5rem;
+  transition: background 0.15s ease, color 0.15s ease;
+  min-width: 2rem;
+  text-align: center;
+}
+.sc101-gear-btn:hover,
+.sc101-gear-btn[aria-expanded='true'] {
+  background: rgba(255,255,255,0.2);
+  color: #ffffff;
+}
+
+/* Generic nav text/icon button (Exit, etc.) */
+.sc101-nav-text-btn {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.45);
+  border-radius: var(--sc101-radius);
+  color: rgba(255,255,255,0.85);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.75rem;
+  padding: 0.25rem 0.625rem;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.sc101-nav-text-btn:hover {
+  background: rgba(255,255,255,0.2);
+  color: #ffffff;
+}
+
+/* The dropdown panel */
+.sc101-settings-panel {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  width: 260px;
+  background-color: var(--sc101-card-bg);
+  border: 1px solid var(--sc101-border);
+  border-radius: calc(var(--sc101-radius) * 2);
+  box-shadow: var(--sc101-card-shadow);
+  z-index: 1000;
+  overflow: hidden;
+  /* ensure it appears over both the nav bar and terminal */
+  animation: sc101-panel-in 0.12s ease;
+}
+
+@keyframes sc101-panel-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.sc101-settings-section {
+  padding: 0.75rem 1rem;
+}
+
+.sc101-settings-divider {
+  height: 1px;
+  background-color: var(--sc101-border);
+}
+
+.sc101-settings-label {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--sc101-fg-muted);
+  margin-bottom: 0.35rem;
+}
+
+.sc101-settings-value {
+  font-size: 0.9rem;
+  color: var(--sc101-fg);
+  font-weight: 500;
+}
+
+.sc101-settings-username {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.sc101-avatar--sm {
+  width: 1.5rem;
+  height: 1.5rem;
+  font-size: 0.7rem;
+}
+
+.sc101-settings-meta {
+  font-size: 0.775rem;
+  color: var(--sc101-fg-muted);
+  margin-top: 0.25rem;
+}
+
+/* Progress bar */
+.sc101-progress-track {
+  height: 6px;
+  background-color: var(--sc101-bg-alt);
+  border-radius: 3px;
+  margin-top: 0.5rem;
+  overflow: hidden;
+  border: 1px solid var(--sc101-border);
+}
+
+.sc101-progress-fill {
+  height: 100%;
+  background-color: var(--sc101-orange);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+/* Download button */
+.sc101-download-btn {
+  width: 100%;
+  padding: 0.4rem 0.75rem;
+  background-color: transparent;
+  border: 1px solid var(--sc101-border);
+  border-radius: var(--sc101-radius);
+  color: var(--sc101-fg);
+  font-family: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+.sc101-download-btn:hover:not(:disabled) {
+  background-color: var(--sc101-highlight);
+  border-color: var(--sc101-orange);
+}
+.sc101-download-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* In-panel theme switcher */
+.sc101-theme-row {
+  display: flex;
+  gap: 0.375rem;
+  margin-top: 0.25rem;
+}
+
+.sc101-theme-opt {
+  flex: 1;
+  padding: 0.35rem 0.25rem;
+  border: 1px solid var(--sc101-border);
+  border-radius: var(--sc101-radius);
+  background-color: transparent;
+  color: var(--sc101-fg-muted);
+  font-family: inherit;
+  font-size: 0.775rem;
+  cursor: pointer;
+  text-align: center;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.sc101-theme-opt:hover {
+  border-color: var(--sc101-orange);
+  color: var(--sc101-fg);
+}
+.sc101-theme-opt.is-active {
+  background-color: var(--sc101-orange);
+  border-color: var(--sc101-orange);
+  color: #ffffff;
+  font-weight: 500;
+}
