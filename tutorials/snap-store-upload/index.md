@@ -6,7 +6,7 @@ description: >
   and publish your first snap so it can be installed on any Linux system.
 difficulty: beginner
 time: 20
-section: "Creating Ubuntu Core image"
+section: "Publishing Snaps"
 tags: [snap, snapcraft, snap-store, publish, release]
 
 environment:
