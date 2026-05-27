@@ -765,13 +765,13 @@ Actually — `undefined && !undefined` is `false`, so it didn't early-return. Th
      - Generates `index.md` with YAML frontmatter
      - Converts `{{execute}}` / `{{copy}}` inline syntax → SC101 fenced run blocks
      - Strips remaining `{{...}}` markers
-   - **Validation** (`validateSc101Tutorial`): required fields (`id`, `title`, `steps`), step files exist
+    - **Validation** (`validateSc101Tutorial`): auto-fills missing `id`/`title` from the final tutorial name, auto-discovers `steps` when missing, and validates that referenced step files exist
    - On failure: cleans up cloned dir, returns structured error list
    - Optional course name parameter (defaults to `Imported_Tutorials`)
 4. **Import UI** in gear menu: URL + course name inputs, inline success/error/warnings display
 5. **Light mode fix**: setup and import CSS now uses `--sc101-fg` / `--sc101-fg-muted` / `--sc101-bg-alt` (previously used undefined variables causing white-on-white text)
 
-**Commits:** `e7537f2`, `507a31f`, `0597f9e`, `360c358` + this phase
+**Commits:** `e7537f2`, `507a31f`, `0597f9e`, `360c358`, `0490a98`, `87c2e6e`, `baef913` + this phase
 
 ---
 
@@ -856,7 +856,7 @@ sc101-lab-interface/
 
 ### Backend
 - [x] **Session expiry** — auto-destroy containers + remove sessions after 2h inactivity *(Phase 33)*
-- [x] **GitHub tutorial import** — detect SC101 and KillerCoda formats, convert, validate, install *(Phase 34)*
+- [x] **GitHub tutorial import** — detect SC101 and KillerCoda formats, convert, validate, install, and auto-fill missing frontmatter *(Phase 34)*
 - [ ] **Rate-limit session creation** — prevent container sprawl
 - [ ] **Delete imported tutorial** — `DELETE /api/tutorials/:uid` endpoint to remove a tutorial folder
 
@@ -870,4 +870,3 @@ sc101-lab-interface/
 ### Security / Production
 - [ ] **Resource limits** — enforce LXD CPU/RAM/disk quotas per container
 - [ ] **HTTPS** — reverse proxy with nginx or Caddy + TLS
-
