@@ -4,6 +4,7 @@ import SettingsPanel from '../components/SettingsPanel/SettingsPanel.jsx'
 export default function LoginScreen({ onSession }) {
   const [tab, setTab] = useState('new')
   const [sessions, setSessions] = useState([])
+  const [savedId] = useState(() => localStorage.getItem('sc101_session_id'))
   const [username, setUsername] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -11,13 +12,14 @@ export default function LoginScreen({ onSession }) {
 
   useEffect(() => {
     const saved = localStorage.getItem('sc101_session_id')
-    if (!saved) return
-    fetch(`/api/sessions/${saved}`)
-      .then((r) => r.ok ? r.json() : null)
-      .then((session) => {
-        if (!session) return
-        setSessions([session])
-        setTab('resume')
+    fetch('/api/sessions')
+      .then((r) => r.ok ? r.json() : [])
+      .then((list) => {
+        if (!list.length) return
+        setSessions(list)
+        // Auto-switch to resume tab if we have a saved session or any sessions exist
+        if (saved && list.some((s) => s.id === saved)) setTab('resume')
+        else if (list.length > 0) setTab('resume')
       })
       .catch(() => {})
   }, [])
@@ -146,13 +148,13 @@ export default function LoginScreen({ onSession }) {
                     {sorted.map((s) => (
                       <div key={s.id} className="sc101-session-item-wrapper">
                         <button
-                          className="sc101-session-item"
+                          className={`sc101-session-item${s.id === savedId ? ' is-saved' : ''}`}
                           onClick={() => resume(s)}
                           disabled={deletingId === s.id}
                         >
                           <div className="sc101-avatar">{s.username?.[0]?.toUpperCase() ?? '?'}</div>
                           <div style={{ flex: 1 }}>
-                            <div className="sc101-session-name">{s.username}</div>
+                            <div className="sc101-session-name">{s.username}{s.id === savedId && <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', color: 'var(--sc101-accent)' }}>← last used</span>}</div>
                             <div className="sc101-session-meta">
                               {s.tutorialId ? `${s.tutorialId} · Step ${s.currentStep + 1}` : 'No tutorial started'} ·{' '}
                               {new Date(s.lastActiveAt).toLocaleString()}

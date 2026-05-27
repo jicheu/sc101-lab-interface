@@ -132,7 +132,7 @@ app.use(express.json())
 // ── Session API ───────────────────────────────────────────────────────────────
 
 app.get('/api/sessions', (_req, res) => {
-  res.status(404).json({ error: 'Not found' })
+  res.json(sessions.list())
 })
 
 app.get('/api/sessions/:id', (req, res) => {
