@@ -263,7 +263,7 @@ export default function TutorialSelector({ session, onSelect, onLogout, activeTu
     <div className="sc101-selector">
       <nav className="sc101-nav">
         <span className="sc101-nav-brand">
-          <span className="sc101-nav-logo">SC</span>
+          <span className="sc101-nav-logo">{session?.username?.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || '??'}</span>
           SC101 Lab Interface
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

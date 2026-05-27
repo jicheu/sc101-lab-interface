@@ -111,13 +111,13 @@ export default function App() {
     <div className="sc101-app">
       <nav className="sc101-nav">
         <span className="sc101-nav-brand">
-          <button onClick={handleBackToSelector} className="sc101-nav-text-btn" style={{ marginRight: '0.5rem' }}>
-            ← Tutorials
-          </button>
-          <span className="sc101-nav-logo">SC</span>
+          <span className="sc101-nav-logo">{session?.username?.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || '??'}</span>
           SC101 Lab Interface
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <button onClick={handleBackToSelector} className="sc101-nav-text-btn">
+            ← Tutorials
+          </button>
           <SettingsPanel session={session} tutorialProgress={tutorialProgress} />
           <button onClick={handleLogout} className="sc101-nav-text-btn">⎋ Exit</button>
         </div>
