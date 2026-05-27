@@ -88,8 +88,32 @@ export default function TutorialSelector({ session, onSelect, onLogout }) {
     return total ? Math.round((done / total) * 100) : 0
   }
 
+  // ── Dependency tree layout per section ──────────────────────────────────
+  // Returns array of "groups": { root: tut|null, children: tut[] }
+  // - root=null means these are standalone tutorials with no parent in this section
+  // - root=tut  means this root + its direct dependents form one visual group
+  const buildSectionGroups = (list) => {
+    const ids = new Set(list.map((t) => t.id))
+    // A tutorial is a "root" in this section if it has no requires within this section
+    const isLocalRoot = (t) => !t.requires?.some((r) => ids.has(r))
+    // Map: rootId → direct children within this section
+    const childrenOf = {}
+    for (const t of list) {
+      if (isLocalRoot(t)) { childrenOf[t.id] = [] }
+    }
+    for (const t of list) {
+      if (!isLocalRoot(t)) {
+        // attach to the first local parent
+        const localParent = t.requires?.find((r) => ids.has(r))
+        if (localParent && childrenOf[localParent]) childrenOf[localParent].push(t)
+      }
+    }
+    return list
+      .filter((t) => isLocalRoot(t))
+      .map((root) => ({ root, children: childrenOf[root.id] || [] }))
+  }
+
   const handleSelect = async (tut) => {
-    const v = validation[tut.id]
     if (v && !v.valid) return
     await fetch(`/api/sessions/${session.id}`, {
       method: 'PATCH',
@@ -235,6 +259,7 @@ export default function TutorialSelector({ session, onSelect, onLogout }) {
         {!loading && !fetchError && sections.map((secName) => {
           const secPct = sectionProgress(secName)
           const secList = sectionMap[secName]
+          const secGroups = buildSectionGroups(secList)
           return (
             <div key={secName} className="sc101-section">
               <div className="sc101-section-header">
@@ -244,9 +269,20 @@ export default function TutorialSelector({ session, onSelect, onLogout }) {
                 </div>
                 <ProgressBar pct={secPct} size="sm" />
               </div>
-              <div className="sc101-tutorial-grid">
-                {secList.map((tut) => <TutorialCard key={tut.id} tut={tut} />)}
-              </div>
+              {secGroups.map((group) => (
+                <div key={group.root.id} className="sc101-tut-group">
+                  {/* Root tutorial — always its own row */}
+                  <div className="sc101-tutorial-grid sc101-tutorial-grid--root">
+                    <TutorialCard tut={group.root} />
+                  </div>
+                  {/* Dependents — side by side on the next row, visually indented */}
+                  {group.children.length > 0 && (
+                    <div className="sc101-tutorial-grid sc101-tutorial-grid--children">
+                      {group.children.map((tut) => <TutorialCard key={tut.id} tut={tut} />)}
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           )
         })}

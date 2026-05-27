@@ -838,6 +838,25 @@ body.is-dark pre[class*='language-'] {
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 1.25rem;
 }
+
+/* Tree layout */
+.sc101-tut-group {
+  margin-bottom: 1rem;
+}
+.sc101-tut-group + .sc101-tut-group {
+  margin-top: 0.25rem;
+}
+/* Root row: single card, full width */
+.sc101-tutorial-grid--root {
+  grid-template-columns: minmax(300px, 480px);
+}
+/* Children row: indented, side by side */
+.sc101-tutorial-grid--children {
+  margin-left: 2.5rem;
+  padding-left: 1rem;
+  border-left: 3px solid var(--sc101-border);
+}
+
 .sc101-tut-card {
   background-color: var(--sc101-surface);
   border: 1px solid var(--sc101-border);
