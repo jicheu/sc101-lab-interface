@@ -8,32 +8,30 @@ import SettingsPanel from './components/SettingsPanel/SettingsPanel.jsx'
 export default function App() {
   const [session, setSession] = useState(null)
   const [checking, setChecking] = useState(true)
-  // null = show selector; string = active tutorial id
   const [activeTutorialId, setActiveTutorialId] = useState(null)
   const [tutorialProgress, setTutorialProgress] = useState(null)
+  const [allTutorials, setAllTutorials] = useState([])
 
   useEffect(() => {
     const saved = localStorage.getItem('sc101_session_id')
     if (!saved) { setChecking(false); return }
     fetch(`/api/sessions/${saved}`)
       .then((r) => r.ok ? r.json() : null)
-      .then((s) => {
-        setSession(s || null)
-        // Always land on the selector; tutorialId in the session only tracks progress
-        setChecking(false)
-      })
+      .then((s) => { setSession(s || null); setChecking(false) })
       .catch(() => setChecking(false))
   }, [])
 
+  // Keep a flat tutorial list so we can find the next tutorial
+  useEffect(() => {
+    fetch('/api/tutorials')
+      .then((r) => r.ok ? r.json() : [])
+      .then((list) => Array.isArray(list) ? setAllTutorials(list) : setAllTutorials([]))
+      .catch(() => {})
+  }, [])
+
   const sendCommandRef = useRef(null)
-
-  const registerSendCommand = useCallback((fn) => {
-    sendCommandRef.current = fn
-  }, [])
-
-  const handleRunCommand = useCallback((command) => {
-    sendCommandRef.current?.(command)
-  }, [])
+  const registerSendCommand = useCallback((fn) => { sendCommandRef.current = fn }, [])
+  const handleRunCommand = useCallback((command) => { sendCommandRef.current?.(command) }, [])
 
   const handleLogout = () => {
     localStorage.removeItem('sc101_session_id')
@@ -48,7 +46,6 @@ export default function App() {
   }
 
   const handleBackToSelector = async () => {
-    // Clear active tutorial from session
     const s = await fetch(`/api/sessions/${session.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -59,6 +56,29 @@ export default function App() {
     setTutorialProgress(null)
   }
 
+  // Find the immediately next tutorial in list order
+  const nextTutorial = (() => {
+    if (!activeTutorialId || !allTutorials.length) return null
+    const idx = allTutorials.findIndex((t) => t.id === activeTutorialId)
+    if (idx === -1 || idx >= allTutorials.length - 1) return null
+    return allTutorials[idx + 1]
+  })()
+
+  const handleFinish = async (goNext) => {
+    if (goNext && nextTutorial) {
+      const s = await fetch(`/api/sessions/${session.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tutorialId: nextTutorial.id, currentStep: 0 }),
+      }).then((r) => r.json()).catch(() => null)
+      if (s) setSession(s)
+      setActiveTutorialId(nextTutorial.id)
+      setTutorialProgress(null)
+    } else {
+      handleBackToSelector()
+    }
+  }
+
   if (checking) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: 'var(--sc101-fg-muted)' }}>
@@ -67,9 +87,7 @@ export default function App() {
     )
   }
 
-  if (!session) {
-    return <LoginScreen onSession={(s) => { setSession(s) }} />
-  }
+  if (!session) return <LoginScreen onSession={(s) => { setSession(s) }} />
 
   if (!activeTutorialId) {
     return (
@@ -85,12 +103,7 @@ export default function App() {
     <div className="sc101-app">
       <nav className="sc101-nav">
         <span className="sc101-nav-brand">
-          <button
-            onClick={handleBackToSelector}
-            className="sc101-nav-text-btn"
-            title="Back to tutorial list"
-            style={{ marginRight: '0.5rem' }}
-          >
+          <button onClick={handleBackToSelector} className="sc101-nav-text-btn" style={{ marginRight: '0.5rem' }}>
             ← Tutorials
           </button>
           <span className="sc101-nav-logo">SC</span>
@@ -98,13 +111,7 @@ export default function App() {
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <SettingsPanel session={session} tutorialProgress={tutorialProgress} />
-          <button
-            onClick={handleLogout}
-            className="sc101-nav-text-btn"
-            title="Back to session list"
-          >
-            ⎋ Exit
-          </button>
+          <button onClick={handleLogout} className="sc101-nav-text-btn">⎋ Exit</button>
         </div>
       </nav>
       <div className="sc101-body">
@@ -113,6 +120,8 @@ export default function App() {
           session={session}
           onRunCommand={handleRunCommand}
           onProgress={setTutorialProgress}
+          nextTutorial={nextTutorial}
+          onFinish={handleFinish}
         />
         <div className="sc101-divider" />
         <TerminalPane session={session} onReady={registerSendCommand} />

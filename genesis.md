@@ -288,6 +288,64 @@ Fix:
 
 ---
 
+## Phase 14 — Tutorial skeleton sections
+
+**Instruction:**  
+Create a section called "Creating Ubuntu Core image" with four tutorials (skeleton only, no content yet):
+1. Create a basic image (no dependencies)
+2. Add a user assertion to connect to the image (requires: tutorial 1)
+3. Customize the image to add your snaps (requires: tutorial 1, not 2)
+4. How to upload a snap to the store (no dependencies — placed in a new "Publishing Snaps" section)
+
+Add the four content-writing tasks to the TODO list.
+
+**Implementation notes:**
+- Each tutorial gets an `index.md` with correct frontmatter (`section`, `requires`, `difficulty`, `tags`) and 5 placeholder `stepN.md` files showing "⚠️ Coming soon"
+- The `section` field in `index.md` is what the selector uses to group tutorials — the field name must match exactly across tutorials in the same group
+
+**Commit:** `Add 4 tutorial skeletons (2 new sections, placeholder content)`
+
+---
+
+## Phase 15 — Bug fix: tutorial step navigation doesn't scroll to top
+
+**Instruction (with root cause):**  
+When clicking Next/Previous in the tutorial panel, the content area remained scrolled to the bottom of the previous step.
+
+Root cause: the tutorial content `<div>` is a scrollable overflow container. Changing `stepIndex` re-renders the content but does not reset the scroll position of the container — the browser has no way to know the content was "replaced".
+
+Fix: attach a `useRef` to the content `<div>` and call `contentRef.current.scrollTo({ top: 0, behavior: 'instant' })` at the start of the step-loading `useEffect`, before the fetch resolves.
+
+```jsx
+// In the useEffect that loads step content:
+contentRef.current?.scrollTo({ top: 0, behavior: 'instant' })
+```
+
+Use `behavior: 'instant'` (not `'smooth'`) to avoid the user seeing the scroll animation while the new content is still loading.
+
+**Commit:** `Fix: scroll tutorial content to top on step navigation`
+
+---
+
+## Phase 16 — Finish screen on last tutorial step
+
+**Instruction:**  
+On the last step of a tutorial, replace the disabled "Next →" button with a "Finish ✓" button. Clicking it shows a modal overlay with three options:
+1. **Start next tutorial** — shown only if a tutorial exists that `requires` the current one and hasn't been completed yet
+2. **Back to tutorial list** — returns to the TutorialSelector
+3. **Stay on this page** — dismisses the overlay
+
+**Implementation notes:**
+- `TutorialPane` accepts two new props: `onFinish(nextTutorialId | null)` and `onBackToSelector()`
+- On mount, `TutorialPane` calls `GET /api/tutorials` to find the first tutorial whose `requires` array contains the current `tutorialId` and that the user hasn't yet completed — this becomes the suggested "next" tutorial
+- The finish overlay is `position: absolute` inside the pane (which is `position: relative`) with a semi-transparent backdrop
+- In `App.jsx`, `handleFinishTutorial(nextId)`: if `nextId` is set, PATCH the session to switch tutorial and update `activeTutorialId`; otherwise call `handleBackToSelector()`
+- `isLastStep = stepIndex >= totalSteps - 1` — use this to conditionally render the Finish button instead of the Next button (no `disabled` prop needed)
+
+**Commit:** `Add finish screen with next-tutorial suggestion on last step`
+
+---
+
 ## Current project structure
 
 ```
@@ -337,6 +395,7 @@ sc101-lab-interface/
 | `lxc export` requires stopped container | Missing `--instance-only` flag | Always use `lxc export --instance-only` |
 | Vanilla CSS not in npm package | Package ships SCSS only, no pre-built CSS | Load from Ubuntu assets CDN |
 | File modification visibility | Overwriting files loses diff context | Use diff blocks + `sed` (INSTRUCTIONS.md Rule 3) |
+| Step navigation stays at bottom | Overflow container scroll not reset on re-render | `contentRef.current?.scrollTo({ top: 0, behavior: 'instant' })` at start of step-load effect |
 
 ---
 

@@ -1088,3 +1088,53 @@ body.is-dark pre[class*='language-'] {
   background-color: rgba(199, 22, 43, 0.08);
   color: #c7162b;
 }
+
+/* ── Tutorial finish overlay ──────────────────────────────────────────── */
+.sc101-finish-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+.sc101-finish-card {
+  background: var(--sc101-surface);
+  border: 1px solid var(--sc101-border);
+  border-radius: 6px;
+  padding: 2rem 2.5rem;
+  max-width: 420px;
+  width: 90%;
+  text-align: center;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+.sc101-finish-icon {
+  font-size: 3rem;
+  line-height: 1;
+  margin-bottom: 0.75rem;
+}
+.sc101-finish-card h2 {
+  font-size: 1.4rem;
+  font-weight: 500;
+  margin: 0 0 0.5rem;
+  color: var(--sc101-fg);
+}
+.sc101-finish-card p {
+  color: var(--sc101-fg-muted);
+  margin: 0 0 1.5rem;
+  font-size: 0.9rem;
+}
+.sc101-finish-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+.sc101-finish-actions button {
+  width: 100%;
+  justify-content: center;
+}
+/* Make sure the pane is a positioning context for the overlay */
+.sc101-tutorial-pane {
+  position: relative;
+}

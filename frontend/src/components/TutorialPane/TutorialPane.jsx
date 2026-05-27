@@ -41,13 +41,14 @@ function escapeAttr(s) {
   return s.replace(/"/g, '&quot;').replace(/\n/g, '&#10;')
 }
 
-export default function TutorialPane({ tutorialId: tutorialIdProp, session, onRunCommand, onProgress }) {
+export default function TutorialPane({ tutorialId: tutorialIdProp, session, onRunCommand, onProgress, nextTutorial, onFinish }) {
   const tutorialId = tutorialIdProp ?? session?.tutorialId ?? 'hello-snap'
   const [meta, setMeta] = useState(null)
   const [stepIndex, setStepIndex] = useState(session?.currentStep ?? 0)
   const [html, setHtml] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [showFinish, setShowFinish] = useState(false)
   const contentRef = useRef(null)
 
   useEffect(() => {
@@ -61,7 +62,7 @@ export default function TutorialPane({ tutorialId: tutorialIdProp, session, onRu
     if (!meta) return
     setLoading(true)
     setError(null)
-    // Scroll content pane to top whenever the step changes
+    setShowFinish(false)
     contentRef.current?.scrollTo({ top: 0, behavior: 'instant' })
     fetch(`/api/tutorials/${tutorialId}/step/${stepIndex}`)
       .then((r) => r.json())
@@ -89,7 +90,6 @@ export default function TutorialPane({ tutorialId: tutorialIdProp, session, onRu
     }).catch(() => {})
   }, [stepIndex, session?.id, meta]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Report progress upward whenever step or meta changes
   useEffect(() => {
     onProgress?.({ step: stepIndex, meta })
   }, [stepIndex, meta]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -106,14 +106,13 @@ export default function TutorialPane({ tutorialId: tutorialIdProp, session, onRu
 
   const totalSteps = meta?.steps?.length ?? 0
   const stepTitle = meta?.steps?.[stepIndex]?.title ?? ''
+  const isLastStep = totalSteps > 0 && stepIndex >= totalSteps - 1
 
   return (
     <div className="sc101-tutorial-pane">
       <div className="sc101-tutorial-header">
         <h3>{meta?.title ?? 'Loading…'}</h3>
-        <span className="sc101-step-indicator">
-          Step {stepIndex + 1} / {totalSteps}
-        </span>
+        <span className="sc101-step-indicator">Step {stepIndex + 1} / {totalSteps}</span>
       </div>
 
       <div className="sc101-tutorial-content" ref={contentRef} onClick={handleContentClick}>
@@ -122,6 +121,41 @@ export default function TutorialPane({ tutorialId: tutorialIdProp, session, onRu
         {error && <p style={{ color: '#c7162b' }}>Error: {error}</p>}
         {!loading && !error && (
           <div dangerouslySetInnerHTML={{ __html: html }} />
+        )}
+
+        {/* Finish overlay — shown when the student clicks Finish on the last step */}
+        {showFinish && (
+          <div className="sc101-finish-overlay">
+            <div className="sc101-finish-card">
+              <div className="sc101-finish-icon">🎉</div>
+              <h2>Tutorial complete!</h2>
+              <p>You have finished <strong>{meta?.title}</strong>.</p>
+              <p>What would you like to do next?</p>
+              <div className="sc101-finish-actions">
+                {nextTutorial && (
+                  <button
+                    className="p-button--positive"
+                    onClick={() => onFinish?.(true)}
+                  >
+                    Next tutorial →<br />
+                    <span className="sc101-finish-next-title">{nextTutorial.title}</span>
+                  </button>
+                )}
+                <button
+                  className="p-button"
+                  onClick={() => onFinish?.(false)}
+                >
+                  ← Back to tutorial list
+                </button>
+                <button
+                  className="sc101-finish-restart"
+                  onClick={() => { setStepIndex(0); setShowFinish(false) }}
+                >
+                  ↺ Restart this tutorial
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
 
@@ -136,13 +170,21 @@ export default function TutorialPane({ tutorialId: tutorialIdProp, session, onRu
 
         <span className="sc101-step-indicator">{stepTitle}</span>
 
-        <button
-          className="p-button"
-          onClick={() => navigateTo(stepIndex + 1)}
-          disabled={stepIndex >= totalSteps - 1}
-        >
-          Next →
-        </button>
+        {isLastStep ? (
+          <button
+            className="p-button--positive"
+            onClick={() => setShowFinish(true)}
+          >
+            Finish ✓
+          </button>
+        ) : (
+          <button
+            className="p-button"
+            onClick={() => navigateTo(stepIndex + 1)}
+          >
+            Next →
+          </button>
+        )}
       </div>
     </div>
   )
