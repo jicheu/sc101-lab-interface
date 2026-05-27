@@ -635,6 +635,16 @@ The `snap-store-upload/index.md` had `section: "Publishing Snaps"` instead of `s
 
 ---
 
+## Phase 28 — Add "Modifying the gadget" skeleton; revert snap-store-upload section
+
+- `snap-store-upload` reverted to `section: "Publishing Snaps"`
+- New skeleton tutorial `uc-gadget-snap` added to `"Creating Ubuntu Core image"` section, no dependencies
+- 3 skeleton steps: Introduction, What is a gadget snap?, Inspect a reference gadget
+
+**Commit:** `1c0b42c`
+
+---
+
 ## Standing instruction (Phase 17+)
 
 > **Always update `genesis.md` after every change to the project**, no matter how small. Add a new Phase section describing: the instruction given, the implementation, any pitfalls encountered, and the commit SHA.
