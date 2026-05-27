@@ -509,6 +509,28 @@ Switch to `http://numbersapi.com/random/trivia`:
 
 ---
 
+## Phase 23 — Fix: switch to icanhazip.com (numbersapi returns HTML)
+
+**Instruction:**  
+`numbersapi.com` returns a full HTML page instead of plain text.
+
+**Root cause:**  
+`numbersapi.com` redirects HTTP to HTTPS (`CURLOPT_FOLLOWLOCATION` follows it), then the HTTPS response is an HTML page when the `Accept` header isn't set correctly.
+
+**Fix:**  
+Switch to `http://icanhazip.com` — Cloudflare-maintained service that returns exactly one line: your public IP address. No SSL, no JSON, no parsing, always available. Output format: `"Your public IP address is: X.X.X.X"`.
+
+**Files changed:**
+- `tutorials/snap-confinement/step2.md` — new URL, strip trailing newline, new fprintf format
+- `tutorials/snap-confinement/step3.md` — snap description
+- `tutorials/snap-confinement/step4.md` — expected error message hostname
+
+**General rule for future tutorials:** Use `http://icanhazip.com` for any lab tutorial that needs a simple, reliable HTTP network call with a text response. It is Cloudflare-maintained, plain HTTP, single-line response.
+
+**Commit:** `530e730` — `fix: switch to icanhazip.com - plain HTTP, single-line IP response`
+
+---
+
 ## Standing instruction (Phase 17+)
 
 > **Always update `genesis.md` after every change to the project**, no matter how small. Add a new Phase section describing: the instruction given, the implementation, any pitfalls encountered, and the commit SHA.
