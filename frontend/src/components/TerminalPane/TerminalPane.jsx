@@ -3,48 +3,30 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 
-const WS_URL = `ws://${window.location.host}/ws/terminal`
-
-export default function TerminalPane({ onReady }) {
+export default function TerminalPane({ session, onReady }) {
   const containerRef = useRef(null)
   const termRef = useRef(null)
   const wsRef = useRef(null)
-  const fitRef = useRef(null)
   const onReadyRef = useRef(onReady)
   const [connected, setConnected] = useState(false)
 
-  // Keep onReadyRef current without re-running the effect
   useEffect(() => { onReadyRef.current = onReady }, [onReady])
 
   useEffect(() => {
+    const wsUrl = `ws://${window.location.host}/ws/terminal?session=${session.id}`
+
     const term = new Terminal({
       cursorBlink: true,
       theme: {
-        background: '#0d0d0d',
-        foreground: '#c8d6e5',
-        cursor: '#e94560',
-        selectionBackground: '#1e3a5f',
-        black: '#0d0d0d',
-        brightBlack: '#555',
-        red: '#e94560',
-        brightRed: '#ff6b81',
-        green: '#4caf50',
-        brightGreen: '#5ddf5f',
-        yellow: '#f0c040',
-        brightYellow: '#ffd32a',
-        blue: '#54a0ff',
-        brightBlue: '#74b9ff',
-        magenta: '#a29bfe',
-        brightMagenta: '#c4bbfe',
-        cyan: '#00cec9',
-        brightCyan: '#55efc4',
-        white: '#dfe6e9',
-        brightWhite: '#fff',
+        background: '#0d0d0d', foreground: '#c8d6e5', cursor: '#e94560',
+        selectionBackground: '#1e3a5f', black: '#0d0d0d', brightBlack: '#555',
+        red: '#e94560', brightRed: '#ff6b81', green: '#4caf50', brightGreen: '#5ddf5f',
+        yellow: '#f0c040', brightYellow: '#ffd32a', blue: '#54a0ff', brightBlue: '#74b9ff',
+        magenta: '#a29bfe', brightMagenta: '#c4bbfe', cyan: '#00cec9', brightCyan: '#55efc4',
+        white: '#dfe6e9', brightWhite: '#fff',
       },
       fontFamily: "'JetBrains Mono', 'Fira Code', 'Courier New', monospace",
-      fontSize: 13,
-      lineHeight: 1.4,
-      scrollback: 5000,
+      fontSize: 13, lineHeight: 1.4, scrollback: 5000,
     })
 
     const fitAddon = new FitAddon()
@@ -52,9 +34,7 @@ export default function TerminalPane({ onReady }) {
     term.open(containerRef.current)
     fitAddon.fit()
     termRef.current = term
-    fitRef.current = fitAddon
 
-    // The send function — stable reference, always uses latest wsRef
     const sendCommand = (command) => {
       if (wsRef.current?.readyState === WebSocket.OPEN) {
         wsRef.current.send(JSON.stringify({ type: 'input', data: command + '\r' }))
@@ -65,7 +45,7 @@ export default function TerminalPane({ onReady }) {
 
     const connect = () => {
       if (destroyed) return
-      const ws = new WebSocket(WS_URL)
+      const ws = new WebSocket(wsUrl)
       wsRef.current = ws
 
       ws.onopen = () => {
@@ -77,9 +57,7 @@ export default function TerminalPane({ onReady }) {
         onReadyRef.current?.(sendCommand)
       }
 
-      ws.onmessage = (e) => {
-        term.write(e.data)
-      }
+      ws.onmessage = (e) => term.write(e.data)
 
       ws.onclose = () => {
         setConnected(false)
@@ -116,7 +94,7 @@ export default function TerminalPane({ onReady }) {
       wsRef.current?.close()
       term.dispose()
     }
-  }, [])
+  }, [session.id])
 
   return (
     <div className="terminal-pane">
@@ -124,16 +102,12 @@ export default function TerminalPane({ onReady }) {
         <span className="dot dot-red" />
         <span className="dot dot-yellow" />
         <span className="dot dot-green" />
-        <span style={{ marginLeft: 8 }}>sc101-dev</span>
+        <span style={{ marginLeft: 8 }}>{session.containerName}</span>
         <span className={`terminal-status ${connected ? '' : 'disconnected'}`}>
           {connected ? '● connected' : '○ connecting…'}
         </span>
       </div>
-      <div
-        className="terminal-body"
-        ref={containerRef}
-        onClick={() => termRef.current?.focus()}
-      />
+      <div className="terminal-body" ref={containerRef} onClick={() => termRef.current?.focus()} />
     </div>
   )
 }

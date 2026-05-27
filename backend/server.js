@@ -6,7 +6,8 @@ const { WebSocketServer, WebSocket } = require('ws')
 const path = require('path')
 const fs = require('fs')
 const pty = require('node-pty')
-const { ensureContainer, getContainerName } = require('./lxd')
+const { ensureContainerForUser, stopAllContainers, onConnect, onDisconnect } = require('./lxd')
+const sessions = require('./sessions')
 
 const PORT = 3001
 const TUTORIALS_DIR = path.join(__dirname, 'tutorials')
@@ -16,14 +17,40 @@ const TUTORIALS_DIR = path.join(__dirname, 'tutorials')
 const app = express()
 app.use(express.json())
 
-// Serve tutorial metadata
+// ── Session API ───────────────────────────────────────────────────────────────
+
+app.get('/api/sessions', (_req, res) => {
+  res.json(sessions.list())
+})
+
+app.get('/api/sessions/:id', (req, res) => {
+  const s = sessions.get(req.params.id)
+  if (!s) return res.status(404).json({ error: 'Session not found' })
+  res.json(s)
+})
+
+app.post('/api/sessions', (req, res) => {
+  const { username, tutorialId } = req.body || {}
+  if (!username || !username.trim()) return res.status(400).json({ error: 'username required' })
+  const session = sessions.create({ username: username.trim(), tutorialId })
+  res.status(201).json(session)
+})
+
+app.patch('/api/sessions/:id', (req, res) => {
+  const { currentStep } = req.body || {}
+  const s = sessions.update(req.params.id, { currentStep })
+  if (!s) return res.status(404).json({ error: 'Session not found' })
+  res.json(s)
+})
+
+// ── Tutorial API ──────────────────────────────────────────────────────────────
+
 app.get('/api/tutorials/:id/meta', (req, res) => {
   const metaPath = path.join(TUTORIALS_DIR, req.params.id, 'meta.json')
   if (!fs.existsSync(metaPath)) return res.status(404).json({ error: 'Not found' })
   res.json(JSON.parse(fs.readFileSync(metaPath, 'utf8')))
 })
 
-// Serve a tutorial step as raw markdown
 app.get('/api/tutorials/:id/step/:index', (req, res) => {
   const metaPath = path.join(TUTORIALS_DIR, req.params.id, 'meta.json')
   if (!fs.existsSync(metaPath)) return res.status(404).json({ error: 'Tutorial not found' })
@@ -40,24 +67,43 @@ app.get('/api/tutorials/:id/step/:index', (req, res) => {
   res.json({ markdown: fs.readFileSync(mdPath, 'utf8') })
 })
 
-// ── HTTP + WebSocket server ──────────────────────────────────────────────────
+// ── WebSocket terminal (per session) ─────────────────────────────────────────
 
 const server = http.createServer(app)
+
+// Path: /ws/terminal/:sessionId  — we parse sessionId from the URL
 const wss = new WebSocketServer({ server, path: '/ws/terminal' })
 
-wss.on('connection', (ws) => {
-  const container = getContainerName()
-  console.log(`[ws] New terminal session → lxc exec ${container}`)
+wss.on('connection', async (ws, req) => {
+  // Extract sessionId from URL query param: /ws/terminal?session=<id>
+  const url = new URL(req.url, `http://localhost`)
+  const sessionId = url.searchParams.get('session')
 
-  const shell = pty.spawn('lxc', ['exec', container, '--', 'bash', '--login'], {
+  const session = sessionId ? sessions.get(sessionId) : null
+  if (!session) {
+    ws.close(4001, 'Invalid or missing session')
+    return
+  }
+
+  const { containerName } = session
+  console.log(`[ws] ${session.username} → container ${containerName}`)
+
+  // Ensure the container is running
+  try {
+    await ensureContainerForUser(containerName)
+  } catch (err) {
+    console.error(`[ws] Failed to start container: ${err.message}`)
+    ws.close(4002, 'Container failed to start')
+    return
+  }
+
+  onConnect(containerName)
+
+  const shell = pty.spawn('lxc', ['exec', containerName, '--', 'bash', '--login'], {
     name: 'xterm-256color',
     cols: 80,
     rows: 24,
-    env: {
-      ...process.env,
-      TERM: 'xterm-256color',
-      COLORTERM: 'truecolor',
-    },
+    env: { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor' },
   })
 
   shell.onData((data) => {
@@ -65,14 +111,13 @@ wss.on('connection', (ws) => {
   })
 
   shell.onExit(({ exitCode }) => {
-    console.log(`[ws] Shell exited with code ${exitCode}`)
+    console.log(`[ws] Shell for ${session.username} exited (${exitCode})`)
     if (ws.readyState === WebSocket.OPEN) ws.close()
   })
 
   ws.on('message', (raw) => {
     let msg
     try { msg = JSON.parse(raw) } catch { return }
-
     if (msg.type === 'input') {
       shell.write(msg.data)
     } else if (msg.type === 'resize') {
@@ -81,20 +126,17 @@ wss.on('connection', (ws) => {
   })
 
   ws.on('close', () => {
-    console.log('[ws] Client disconnected')
+    console.log(`[ws] ${session.username} disconnected`)
     shell.kill()
+    onDisconnect(containerName)
   })
 })
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
 
-ensureContainer()
-  .then(() => {
-    server.listen(PORT, () => {
-      console.log(`[server] Backend listening on http://localhost:${PORT}`)
-    })
-  })
-  .catch((err) => {
-    console.error('[lxd] Failed to ensure container:', err.message)
-    process.exit(1)
-  })
+console.log('[lxd] Stopping all sc101 containers on startup…')
+stopAllContainers()
+
+server.listen(PORT, () => {
+  console.log(`[server] Backend listening on http://localhost:${PORT}`)
+})

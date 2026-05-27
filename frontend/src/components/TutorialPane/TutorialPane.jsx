@@ -8,8 +8,6 @@ import 'prismjs/themes/prism-tomorrow.css'
 
 const TUTORIAL_ID = 'hello-snap'
 
-marked.use({ breaks: true })
-
 // Custom renderer: code blocks tagged with "run" get a ▶ Run button
 function buildRenderer(onRunCommand) {
   const renderer = new Renderer()
@@ -44,46 +42,59 @@ function escapeAttr(s) {
   return s.replace(/"/g, '&quot;').replace(/\n/g, '&#10;')
 }
 
-export default function TutorialPane({ onRunCommand }) {
+marked.use({ breaks: true })
+
+export default function TutorialPane({ session, onRunCommand, onLogout }) {
+  const tutorialId = session?.tutorialId ?? TUTORIAL_ID
   const [meta, setMeta] = useState(null)
-  const [stepIndex, setStepIndex] = useState(0)
+  const [stepIndex, setStepIndex] = useState(session?.currentStep ?? 0)
   const [html, setHtml] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
   // Load tutorial metadata once
   useEffect(() => {
-    fetch(`/api/tutorials/${TUTORIAL_ID}/meta`)
+    fetch(`/api/tutorials/${tutorialId}/meta`)
       .then((r) => r.json())
       .then(setMeta)
       .catch((e) => setError(e.message))
-  }, [])
+  }, [tutorialId])
 
   // Load step content whenever step changes
   useEffect(() => {
     if (!meta) return
     setLoading(true)
     setError(null)
-
-    fetch(`/api/tutorials/${TUTORIAL_ID}/step/${stepIndex}`)
+    fetch(`/api/tutorials/${tutorialId}/step/${stepIndex}`)
       .then((r) => r.json())
       .then(({ markdown }) => {
         const renderer = buildRenderer(onRunCommand)
         setHtml(marked.parse(markdown, { renderer }))
         setLoading(false)
       })
-      .catch((e) => {
-        setError(e.message)
-        setLoading(false)
-      })
+      .catch((e) => { setError(e.message); setLoading(false) })
   }, [meta, stepIndex]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Persist step to backend whenever it changes
+  useEffect(() => {
+    if (!session?.id) return
+    fetch(`/api/sessions/${session.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentStep: stepIndex }),
+    }).catch(() => {})
+  }, [stepIndex, session?.id])
+
+  const navigateTo = (i) => {
+    const total = meta?.steps?.length ?? 0
+    if (i >= 0 && i < total) setStepIndex(i)
+  }
 
   // Delegate run-button clicks via event delegation on the content div
   const handleContentClick = (e) => {
     const btn = e.target.closest('.run-btn')
     if (btn && onRunCommand) {
-      const command = btn.dataset.command
-      onRunCommand(command)
+      onRunCommand(btn.dataset.command)
     }
   }
 
@@ -93,7 +104,10 @@ export default function TutorialPane({ onRunCommand }) {
   return (
     <div className="tutorial-pane">
       <div className="tutorial-header">
-        <h1>{meta?.title ?? 'Loading…'}</h1>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <h1>{meta?.title ?? 'Loading…'}</h1>
+          <button className="logout-btn" onClick={onLogout} title="Back to sessions">⬡ {session?.username}</button>
+        </div>
         {meta && (
           <div className="step-indicator">
             Step {stepIndex + 1} of {totalSteps} — {stepTitle}
@@ -110,29 +124,17 @@ export default function TutorialPane({ onRunCommand }) {
       </div>
 
       <div className="tutorial-nav">
-        <button
-          className="nav-btn"
-          onClick={() => setStepIndex((i) => i - 1)}
-          disabled={stepIndex === 0}
-        >
+        <button className="nav-btn" onClick={() => navigateTo(stepIndex - 1)} disabled={stepIndex === 0}>
           ← Previous
         </button>
 
         <div className="step-dots">
           {Array.from({ length: totalSteps }).map((_, i) => (
-            <div
-              key={i}
-              className={`step-dot ${i === stepIndex ? 'active' : ''}`}
-              onClick={() => setStepIndex(i)}
-            />
+            <div key={i} className={`step-dot ${i === stepIndex ? 'active' : ''}`} onClick={() => navigateTo(i)} />
           ))}
         </div>
 
-        <button
-          className="nav-btn"
-          onClick={() => setStepIndex((i) => i + 1)}
-          disabled={stepIndex >= totalSteps - 1}
-        >
+        <button className="nav-btn" onClick={() => navigateTo(stepIndex + 1)} disabled={stepIndex >= totalSteps - 1}>
           Next →
         </button>
       </div>
