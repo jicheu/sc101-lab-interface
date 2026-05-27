@@ -7,7 +7,7 @@ const path = require('path')
 const fs = require('fs')
 const pty = require('node-pty')
 const { execFile } = require('child_process')
-const { ensureContainerForUser, stopAllContainers, destroyContainer, onConnect, onDisconnect, SESSION_EXPIRY_MS } = require('./lxd')
+const { ensureContainerForUser, stopAllContainers, stopContainer, destroyContainer, onConnect, onDisconnect, SESSION_EXPIRY_MS } = require('./lxd')
 const sessions = require('./sessions')
 
 const matter = require('gray-matter')
@@ -163,10 +163,9 @@ app.patch('/api/sessions/:id', (req, res) => {
 app.delete('/api/sessions/:id', (req, res) => {
   const s = sessions.get(req.params.id)
   if (!s) return res.status(404).json({ error: 'Session not found' })
-  sessions.remove(req.params.id)
-  // Destroy the LXD container (non-blocking — don't fail the response if lxd is unavailable)
-  try { destroyContainer(s.containerName) } catch (e) {
-    console.error(`[api] DELETE session — container destroy failed: ${e.message}`)
+  // Stop the container but keep the session record so it can still be resumed later.
+  try { stopContainer(s.containerName) } catch (e) {
+    console.error(`[api] DELETE session — container stop failed: ${e.message}`)
   }
   res.json({ ok: true })
 })
@@ -761,8 +760,8 @@ wss.on('connection', async (ws, req) => {
 console.log('[lxd] Stopping all sc101 containers on startup…')
 stopAllContainers()
 
-// Periodic session expiry: every 15 minutes, destroy containers and remove
-// sessions that have been inactive for longer than SESSION_EXPIRY_MS (2 hours).
+// Periodic session expiry: every 15 minutes, stop containers that have been
+// inactive for longer than SESSION_EXPIRY_MS (2 hours). Session records stay.
 function runSessionExpiry() {
   const now = Date.now()
   const expired = sessions.list().filter((s) => {
@@ -771,9 +770,8 @@ function runSessionExpiry() {
   })
   for (const s of expired) {
     console.log(`[expiry] Session ${s.id} (${s.username}) inactive >2h — cleaning up…`)
-    try { destroyContainer(s.containerName) } catch (e) { console.error(`[expiry] Container destroy failed: ${e.message}`) }
-    sessions.remove(s.id)
-    console.log(`[expiry] Session ${s.id} removed.`)
+    try { stopContainer(s.containerName) } catch (e) { console.error(`[expiry] Container stop failed: ${e.message}`) }
+    console.log(`[expiry] Session ${s.id} kept; container stopped.`)
   }
 }
 

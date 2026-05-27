@@ -111,4 +111,4 @@ function onDisconnect(containerName) {
   }
 }
 
-module.exports = { ensureContainerForUser, stopAllContainers, destroyContainer, onConnect, onDisconnect, SESSION_EXPIRY_MS }
+module.exports = { ensureContainerForUser, stopAllContainers, stopContainer, destroyContainer, onConnect, onDisconnect, SESSION_EXPIRY_MS }
