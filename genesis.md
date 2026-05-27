@@ -531,6 +531,35 @@ Switch to `http://icanhazip.com` — Cloudflare-maintained service that returns 
 
 ---
 
+## Phase 24 — Refactor: split snap-confinement step4 into 5 atomic steps
+
+**Instruction:**  
+Step4 was too dense — it had 5 distinct parts covering entirely different concepts. Split into atomic pages following INSTRUCTIONS.md structure.
+
+**New step structure (was 4 steps, now 8):**
+
+| Step | Title | Content |
+|------|-------|---------|
+| step4 | Enable strict confinement | Patch yaml with sed, rebuild, reinstall |
+| step5 | Observe the network denial | Run snap, read error, journalctl AppArmor |
+| step6 | Grant network access | Add network plug, rebuild, run, see file error |
+| step7 | Grant home directory access | Add home plug, rebuild, reinstall |
+| step8 | Connect the interface and verify | snap connect, run success, snap connections |
+
+Each step follows the INSTRUCTIONS.md pattern: Objective → Concept callouts → Commands → What we learned → What's next.
+
+**Files changed:**
+- `step4.md` — rewritten as atomic "Enable strict confinement" step
+- `step5.md` — new: "Observe the network denial"
+- `step6.md` — new: "Grant network access"
+- `step7.md` — new: "Grant home directory access"
+- `step8.md` — new: "Connect the interface and verify"
+- `index.md` — updated steps list from 4 to 8 entries
+
+**Commit:** `387ac0e` — `refactor: split snap-confinement step4 into 5 atomic steps (steps 4-8)`
+
+---
+
 ## Standing instruction (Phase 17+)
 
 > **Always update `genesis.md` after every change to the project**, no matter how small. Add a new Phase section describing: the instruction given, the implementation, any pitfalls encountered, and the commit SHA.
