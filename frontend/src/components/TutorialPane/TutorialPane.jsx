@@ -67,13 +67,20 @@ export default function TutorialPane({ tutorialId: tutorialIdProp, session, onRu
 
   useEffect(() => {
     if (!meta) return
+    // Clamp stepIndex to valid range for the new tutorial
+    const safeIndex = Math.min(stepIndex, meta.steps.length - 1)
+    if (safeIndex !== stepIndex) {
+      setStepIndex(safeIndex)
+      return  // the index change will re-trigger this effect with the correct value
+    }
     setLoading(true)
     setError(null)
     setShowFinish(false)
     contentRef.current?.scrollTo({ top: 0, behavior: 'instant' })
-    fetch(`/api/tutorials/${tutorialId}/step/${stepIndex}`)
+    fetch(`/api/tutorials/${tutorialId}/step/${safeIndex}`)
       .then((r) => r.json())
       .then(({ markdown }) => {
+        if (!markdown) throw new Error('Empty step content')
         const renderer = buildRenderer(onRunCommand)
         setHtml(marked.parse(markdown, { renderer }))
         setLoading(false)
