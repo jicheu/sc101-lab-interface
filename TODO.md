@@ -9,6 +9,28 @@
 
 ---
 
+## Tutorial Content — To Write
+
+The following tutorial skeletons exist in `tutorials/` and need full content authored following `tutorials/INSTRUCTIONS.md`.
+
+### Section: Creating Ubuntu Core image
+
+- [ ] **`uc-basic-image`** — Create a basic Ubuntu Core image  
+  Build a minimal image using `ubuntu-image` and a model assertion.
+
+- [ ] **`uc-user-assertion`** *(requires: uc-basic-image)* — Add a user assertion to connect to the image  
+  Create and inject a user assertion to enable SSH login via Ubuntu SSO.
+
+- [ ] **`uc-customize-image`** *(requires: uc-basic-image)* — Customize the image to add your snaps  
+  Pre-install snaps at build time via the model assertion.
+
+### Section: Publishing Snaps
+
+- [ ] **`snap-store-upload`** — How to upload a snap to the Snap Store  
+  Register a snap name, log in with snapcraft, upload and release.
+
+---
+
 ## Infrastructure — Host Prerequisites
 
 These steps must be completed on the host machine before running the application.
