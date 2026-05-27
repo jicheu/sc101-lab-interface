@@ -401,6 +401,22 @@ printf 'CC      = gcc\nCFLAGS  = -Wall -O2\nLDFLAGS = -lcurl\n\ninspire: inspire
 
 ---
 
+## Phase 19 — Fix: use `snapcraft pack` instead of bare `snapcraft` command
+
+**Instruction:**  
+Tutorial steps were using `snapcraft --destructive-mode` (old syntax). Update to `snapcraft pack --destructive-mode` to match current CLI syntax.
+
+**Files changed (5 occurrences total):**
+- `tutorials/hello-snap/step5.md` — 2 occurrences (run block + "what we learned" explanation)
+- `tutorials/snap-confinement/step3.md` — 1 occurrence
+- `tutorials/snap-confinement/step4.md` — 3 occurrences (each rebuild step)
+
+**General rule for future tutorials:** Always use `snapcraft pack` (not bare `snapcraft`) as the build command. The `--destructive-mode` flag remains valid and unchanged.
+
+**Commit:** `6fec1ef` — `fix: use 'snapcraft pack' instead of bare 'snapcraft' command`
+
+---
+
 ## Standing instruction (Phase 17+)
 
 > **Always update `genesis.md` after every change to the project**, no matter how small. Add a new Phase section describing: the instruction given, the implementation, any pitfalls encountered, and the commit SHA.
