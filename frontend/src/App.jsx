@@ -19,8 +19,7 @@ export default function App() {
       .then((r) => r.ok ? r.json() : null)
       .then((s) => {
         setSession(s || null)
-        // Restore active tutorial if session had one
-        if (s?.tutorialId) setActiveTutorialId(s.tutorialId)
+        // Always land on the selector; tutorialId in the session only tracks progress
         setChecking(false)
       })
       .catch(() => setChecking(false))
@@ -69,7 +68,7 @@ export default function App() {
   }
 
   if (!session) {
-    return <LoginScreen onSession={(s) => { setSession(s); setActiveTutorialId(s.tutorialId ?? null) }} />
+    return <LoginScreen onSession={(s) => { setSession(s) }} />
   }
 
   if (!activeTutorialId) {
