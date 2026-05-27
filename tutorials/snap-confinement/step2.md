@@ -125,17 +125,7 @@ EOF
 ### Write the Makefile
 
 ```bash run
-cat > ~/inspire/src/Makefile << 'EOF'
-CC      = gcc
-CFLAGS  = -Wall -O2
-LDFLAGS = -lcurl
-
-inspire: inspire.c
-	$(CC) $(CFLAGS) -o inspire inspire.c $(LDFLAGS)
-
-clean:
-	rm -f inspire
-EOF
+printf 'CC      = gcc\nCFLAGS  = -Wall -O2\nLDFLAGS = -lcurl\n\ninspire: inspire.c\n\t$(CC) $(CFLAGS) -o inspire inspire.c $(LDFLAGS)\n\nclean:\n\trm -f inspire\n' > ~/inspire/src/Makefile
 ```
 
 ### Compile and test
