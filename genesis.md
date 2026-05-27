@@ -327,7 +327,7 @@ Use `behavior: 'instant'` (not `'smooth'`) to avoid the user seeing the scroll a
 
 ---
 
-## Phase 16 — Finish screen on last tutorial step
+## Phase 16 — Finish screen on last tutorial step + next-tutorial navigation crash fix
 
 **Instruction:**  
 On the last step of a tutorial, replace the disabled "Next →" button with a "Finish ✓" button. Clicking it shows a modal overlay with three options:
@@ -343,6 +343,45 @@ On the last step of a tutorial, replace the disabled "Next →" button with a "F
 - `isLastStep = stepIndex >= totalSteps - 1` — use this to conditionally render the Finish button instead of the Next button (no `disabled` prop needed)
 
 **Commit:** `Add finish screen with next-tutorial suggestion on last step`
+
+---
+
+## Phase 17 — Bug fix: "next tutorial" shows wrong step number and crashes
+
+**Instruction:**  
+When clicking "Start next tutorial" from the finish overlay, the tutorial pane shows step "6/4" and throws `Error: marked(): input parameter is undefined or null`.
+
+**Root cause:**  
+When `tutorialId` changes, React batches `setStepIndex(0)` and `setMeta(null)` in the same render cycle. The step-fetch `useEffect([meta, stepIndex])` fires with the *new* meta but the *old* `stepIndex` (e.g. 5). It tries to fetch step 5 of a 4-step tutorial — the backend returns nothing — so `marked.parse(undefined)` crashes.
+
+**Fix:**  
+Consolidate all state resets into the `tutorialId` `useEffect` instead of scattering them:
+
+```jsx
+useEffect(() => {
+  // Reset all step state when switching tutorials
+  setStepIndex(0)
+  setMeta(null)
+  setHtml('')
+  setLoading(true)
+  setError(null)
+  setShowFinish(false)
+  fetch(`/api/tutorials/${tutorialId}/meta`)
+    .then((r) => r.json())
+    .then(setMeta)
+    .catch((e) => setError(e.message))
+}, [tutorialId])
+```
+
+This ensures that by the time the new `meta` arrives, `stepIndex` is already `0`.
+
+**Commit:** `df90943` — `Fix: reset step to 0 when switching to next tutorial`
+
+---
+
+## Standing instruction (Phase 17+)
+
+> **Always update `genesis.md` after every change to the project**, no matter how small. Add a new Phase section describing: the instruction given, the implementation, any pitfalls encountered, and the commit SHA.
 
 ---
 
@@ -396,6 +435,7 @@ sc101-lab-interface/
 | Vanilla CSS not in npm package | Package ships SCSS only, no pre-built CSS | Load from Ubuntu assets CDN |
 | File modification visibility | Overwriting files loses diff context | Use diff blocks + `sed` (INSTRUCTIONS.md Rule 3) |
 | Step navigation stays at bottom | Overflow container scroll not reset on re-render | `contentRef.current?.scrollTo({ top: 0, behavior: 'instant' })` at start of step-load effect |
+| "Next tutorial" shows wrong step + crash | React batches state; new `meta` arrives before `stepIndex` resets | Reset all state (`stepIndex`, `meta`, `html`, etc.) in the same `tutorialId` `useEffect` |
 
 ---
 
