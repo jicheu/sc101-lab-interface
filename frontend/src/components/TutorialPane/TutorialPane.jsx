@@ -8,7 +8,6 @@ import 'prismjs/themes/prism-tomorrow.css'
 
 const TUTORIAL_ID = 'hello-snap'
 
-// Custom renderer: code blocks tagged with "run" get a ▶ Run button
 function buildRenderer(onRunCommand) {
   const renderer = new Renderer()
 
@@ -22,10 +21,10 @@ function buildRenderer(onRunCommand) {
       : escapeHtml(code)
 
     const runButton = isRunnable
-      ? `<button class="run-btn" data-command="${escapeAttr(code)}">▶ Run</button>`
+      ? `<button class="sc101-run-btn" data-command="${escapeAttr(code)}">▶ Run</button>`
       : ''
 
-    return `<div class="code-block-wrapper">
+    return `<div class="sc101-code-block">
   <pre class="language-${lang}"><code class="language-${lang}">${highlighted}</code></pre>
   ${runButton}
 </div>`
@@ -44,7 +43,7 @@ function escapeAttr(s) {
 
 marked.use({ breaks: true })
 
-export default function TutorialPane({ session, onRunCommand, onLogout }) {
+export default function TutorialPane({ session, onRunCommand }) {
   const tutorialId = session?.tutorialId ?? TUTORIAL_ID
   const [meta, setMeta] = useState(null)
   const [stepIndex, setStepIndex] = useState(session?.currentStep ?? 0)
@@ -52,7 +51,6 @@ export default function TutorialPane({ session, onRunCommand, onLogout }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  // Load tutorial metadata once
   useEffect(() => {
     fetch(`/api/tutorials/${tutorialId}/meta`)
       .then((r) => r.json())
@@ -60,7 +58,6 @@ export default function TutorialPane({ session, onRunCommand, onLogout }) {
       .catch((e) => setError(e.message))
   }, [tutorialId])
 
-  // Load step content whenever step changes
   useEffect(() => {
     if (!meta) return
     setLoading(true)
@@ -75,7 +72,6 @@ export default function TutorialPane({ session, onRunCommand, onLogout }) {
       .catch((e) => { setError(e.message); setLoading(false) })
   }, [meta, stepIndex]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Persist step to backend whenever it changes
   useEffect(() => {
     if (!session?.id) return
     fetch(`/api/sessions/${session.id}`, {
@@ -90,51 +86,48 @@ export default function TutorialPane({ session, onRunCommand, onLogout }) {
     if (i >= 0 && i < total) setStepIndex(i)
   }
 
-  // Delegate run-button clicks via event delegation on the content div
   const handleContentClick = (e) => {
-    const btn = e.target.closest('.run-btn')
-    if (btn && onRunCommand) {
-      onRunCommand(btn.dataset.command)
-    }
+    const btn = e.target.closest('.sc101-run-btn')
+    if (btn && onRunCommand) onRunCommand(btn.dataset.command)
   }
 
   const totalSteps = meta?.steps?.length ?? 0
   const stepTitle = meta?.steps?.[stepIndex]?.title ?? ''
 
   return (
-    <div className="tutorial-pane">
-      <div className="tutorial-header">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <h1>{meta?.title ?? 'Loading…'}</h1>
-          <button className="logout-btn" onClick={onLogout} title="Back to sessions">⬡ {session?.username}</button>
-        </div>
-        {meta && (
-          <div className="step-indicator">
-            Step {stepIndex + 1} of {totalSteps} — {stepTitle}
-          </div>
-        )}
+    <div className="sc101-tutorial-pane">
+      <div className="sc101-tutorial-header">
+        <h3>{meta?.title ?? 'Loading…'}</h3>
+        <span className="sc101-step-indicator">
+          Step {stepIndex + 1} / {totalSteps}
+        </span>
       </div>
 
-      <div className="tutorial-content" onClick={handleContentClick}>
-        {loading && <p style={{ color: '#7a9cc0' }}>Loading…</p>}
-        {error && <p style={{ color: '#e94560' }}>Error: {error}</p>}
+      <div className="sc101-tutorial-content" onClick={handleContentClick}>
+        {stepTitle && <h1>{stepTitle}</h1>}
+        {loading && <p style={{ color: 'var(--sc101-fg-muted)' }}>Loading…</p>}
+        {error && <p style={{ color: '#c7162b' }}>Error: {error}</p>}
         {!loading && !error && (
           <div dangerouslySetInnerHTML={{ __html: html }} />
         )}
       </div>
 
-      <div className="tutorial-nav">
-        <button className="nav-btn" onClick={() => navigateTo(stepIndex - 1)} disabled={stepIndex === 0}>
+      <div className="sc101-step-nav">
+        <button
+          className="p-button"
+          onClick={() => navigateTo(stepIndex - 1)}
+          disabled={stepIndex === 0}
+        >
           ← Previous
         </button>
 
-        <div className="step-dots">
-          {Array.from({ length: totalSteps }).map((_, i) => (
-            <div key={i} className={`step-dot ${i === stepIndex ? 'active' : ''}`} onClick={() => navigateTo(i)} />
-          ))}
-        </div>
+        <span className="sc101-step-indicator">{stepTitle}</span>
 
-        <button className="nav-btn" onClick={() => navigateTo(stepIndex + 1)} disabled={stepIndex >= totalSteps - 1}>
+        <button
+          className="p-button"
+          onClick={() => navigateTo(stepIndex + 1)}
+          disabled={stepIndex >= totalSteps - 1}
+        >
           Next →
         </button>
       </div>

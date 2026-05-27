@@ -2,6 +2,7 @@ import { useRef, useCallback, useState, useEffect } from 'react'
 import LoginScreen from './screens/LoginScreen.jsx'
 import TutorialPane from './components/TutorialPane/TutorialPane.jsx'
 import TerminalPane from './components/TerminalPane/TerminalPane.jsx'
+import ThemeToggle from './components/ThemeToggle/ThemeToggle.jsx'
 
 export default function App() {
   const [session, setSession] = useState(null)
@@ -45,13 +46,39 @@ export default function App() {
   }
 
   return (
-    <div className="app-layout">
-      <TutorialPane
-        session={session}
-        onRunCommand={handleRunCommand}
-        onLogout={handleLogout}
-      />
-      <TerminalPane session={session} onReady={registerSendCommand} />
+    <div className="sc101-app">
+      <nav className="sc101-nav">
+        <span className="sc101-nav-brand">
+          <span className="sc101-nav-logo">SC</span>
+          SC101 Lab Interface
+        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <ThemeToggle />
+          <button
+            onClick={handleLogout}
+            style={{
+              background: 'transparent',
+              border: '1px solid rgba(255,255,255,0.45)',
+              borderRadius: '4px',
+              color: 'rgba(255,255,255,0.85)',
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              fontSize: '0.75rem',
+              padding: '0.25rem 0.625rem',
+            }}
+          >
+            ⎋ Exit
+          </button>
+        </div>
+      </nav>
+      <div className="sc101-body">
+        <TutorialPane
+          session={session}
+          onRunCommand={handleRunCommand}
+        />
+        <div className="sc101-divider" />
+        <TerminalPane session={session} onReady={registerSendCommand} />
+      </div>
     </div>
   )
 }

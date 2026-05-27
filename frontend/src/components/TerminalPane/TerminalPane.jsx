@@ -18,14 +18,14 @@ export default function TerminalPane({ session, onReady }) {
     const term = new Terminal({
       cursorBlink: true,
       theme: {
-        background: '#0d0d0d', foreground: '#c8d6e5', cursor: '#e94560',
-        selectionBackground: '#1e3a5f', black: '#0d0d0d', brightBlack: '#555',
-        red: '#e94560', brightRed: '#ff6b81', green: '#4caf50', brightGreen: '#5ddf5f',
-        yellow: '#f0c040', brightYellow: '#ffd32a', blue: '#54a0ff', brightBlue: '#74b9ff',
+        background: '#1a1a1a', foreground: '#f8f8f2', cursor: '#e95420',
+        selectionBackground: '#444', black: '#1a1a1a', brightBlack: '#555',
+        red: '#c7162b', brightRed: '#e95420', green: '#0e8420', brightGreen: '#5ddf5f',
+        yellow: '#f0c040', brightYellow: '#ffd32a', blue: '#0066cc', brightBlue: '#74b9ff',
         magenta: '#a29bfe', brightMagenta: '#c4bbfe', cyan: '#00cec9', brightCyan: '#55efc4',
-        white: '#dfe6e9', brightWhite: '#fff',
+        white: '#dfe6e9', brightWhite: '#ffffff',
       },
-      fontFamily: "'JetBrains Mono', 'Fira Code', 'Courier New', monospace",
+      fontFamily: "'Ubuntu Mono', 'Courier New', monospace",
       fontSize: 13, lineHeight: 1.4, scrollback: 5000,
     })
 
@@ -97,17 +97,21 @@ export default function TerminalPane({ session, onReady }) {
   }, [session.id])
 
   return (
-    <div className="terminal-pane">
-      <div className="terminal-header">
-        <span className="dot dot-red" />
-        <span className="dot dot-yellow" />
-        <span className="dot dot-green" />
-        <span style={{ marginLeft: 8 }}>{session.containerName}</span>
-        <span className={`terminal-status ${connected ? '' : 'disconnected'}`}>
-          {connected ? '● connected' : '○ connecting…'}
+    <div className="sc101-terminal-pane">
+      <div className="sc101-terminal-header">
+        <span className="sc101-terminal-title">
+          <span className={`sc101-status-dot${connected ? ' is-connected' : ''}`} />
+          {session.containerName}
+        </span>
+        <span style={{ color: '#888', fontSize: '0.75rem' }}>
+          {connected ? 'connected' : 'connecting…'}
         </span>
       </div>
-      <div className="terminal-body" ref={containerRef} onClick={() => termRef.current?.focus()} />
+      <div
+        className="sc101-terminal-viewport"
+        ref={containerRef}
+        onClick={() => termRef.current?.focus()}
+      />
     </div>
   )
 }
