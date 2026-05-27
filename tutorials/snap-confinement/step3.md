@@ -40,12 +40,16 @@ confinement: devmode
 
 parts:
   inspire:
-    plugin: make
+    plugin: nil
     source: src/
     build-packages:
+      - gcc
       - libcurl4-openssl-dev
     stage-packages:
       - libcurl4
+    override-build: |
+      make
+      install -m755 inspire "$CRAFT_PART_INSTALL/"
 
 apps:
   inspire:

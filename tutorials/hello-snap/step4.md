@@ -39,10 +39,13 @@ confinement: strict
 
 parts:
   hello:
-    plugin: make
+    plugin: nil
     source: src/
+    build-packages:
+      - gcc
     override-build: |
-      gcc -o $CRAFT_PART_INSTALL/hello hello.c
+      gcc -o hello hello.c
+      install -m755 hello "$CRAFT_PART_INSTALL/"
 
 apps:
   hello:
@@ -67,7 +70,8 @@ cat ~/hello-snap/snap/snapcraft.yaml
 | `name` | The snap's unique identifier on the store |
 | `base` | The Ubuntu base image to run against (`core24` = Ubuntu 24.04) |
 | `confinement: strict` | The snap cannot access resources outside its sandbox |
-| `parts` | How to build each component of the snap |
+| `plugin: nil` | No automatic build logic — we control every step via `override-build` |
+| `override-build` | Shell script that compiles and installs into `$CRAFT_PART_INSTALL` |
 | `apps` | The commands exposed to the user after installation |
 
 Our hello-world needs no special interfaces since it only writes to stdout — strict confinement is safe with no additional declarations.
