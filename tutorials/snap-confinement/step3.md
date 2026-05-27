@@ -92,7 +92,7 @@ The snap fetches the quote and writes the file — no restrictions, everything w
 Even in devmode, the kernel logs any access that *would* have been denied under strict confinement:
 
 ```bash run
-dmesg | grep -i 'apparmor.*inspire' | tail -20
+grep -i 'apparmor.*inspire' /var/log/syslog | tail -20
 ```
 
 You may already see entries for `network` and `home` access. These are warnings only — in the next step, they become hard blocks.
