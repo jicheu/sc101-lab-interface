@@ -23,12 +23,18 @@ function get(id) {
   return load()[id] || null
 }
 
-function create({ username, tutorialId = 'hello-snap' }) {
+function create({ username, tutorialId = null }) {
   const sessions = load()
   const id = crypto.randomBytes(8).toString('hex')
   const containerName = sanitizeContainerName(username)
   const now = new Date().toISOString()
-  const session = { id, username, containerName, tutorialId, currentStep: 0, createdAt: now, lastActiveAt: now }
+  const session = {
+    id, username, containerName,
+    tutorialId,          // active tutorial (null until selected)
+    currentStep: 0,
+    progress: {},        // { [tutorialId]: { status, currentStep } }
+    createdAt: now, lastActiveAt: now
+  }
   sessions[id] = session
   save(sessions)
   return session
@@ -37,7 +43,39 @@ function create({ username, tutorialId = 'hello-snap' }) {
 function update(id, patch) {
   const sessions = load()
   if (!sessions[id]) return null
-  sessions[id] = { ...sessions[id], ...patch, lastActiveAt: new Date().toISOString() }
+  const s = sessions[id]
+
+  // Handle progress update: { tutorialId, currentStep, status }
+  if (patch.tutorialId !== undefined || patch.currentStep !== undefined) {
+    const tid = patch.tutorialId ?? s.tutorialId
+    const step = patch.currentStep ?? s.currentStep
+    const totalSteps = patch.totalSteps    // optional, sent by frontend
+    let status = 'in-progress'
+    if (patch.status) {
+      status = patch.status
+    } else if (totalSteps !== undefined && step >= totalSteps - 1) {
+      status = 'completed'
+    } else if (step === 0 && !s.progress?.[tid]) {
+      status = 'in-progress'
+    } else {
+      status = s.progress?.[tid]?.status || 'in-progress'
+      if (status === 'completed') status = 'completed' // keep completed
+    }
+
+    const progress = { ...(s.progress || {}) }
+    progress[tid] = { currentStep: step, status }
+
+    sessions[id] = {
+      ...s,
+      tutorialId: tid,
+      currentStep: step,
+      progress,
+      lastActiveAt: new Date().toISOString(),
+    }
+  } else {
+    sessions[id] = { ...s, ...patch, lastActiveAt: new Date().toISOString() }
+  }
+
   save(sessions)
   return sessions[id]
 }

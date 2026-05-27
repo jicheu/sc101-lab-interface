@@ -1,5 +1,6 @@
 import { useRef, useCallback, useState, useEffect } from 'react'
 import LoginScreen from './screens/LoginScreen.jsx'
+import TutorialSelector from './screens/TutorialSelector.jsx'
 import TutorialPane from './components/TutorialPane/TutorialPane.jsx'
 import TerminalPane from './components/TerminalPane/TerminalPane.jsx'
 import SettingsPanel from './components/SettingsPanel/SettingsPanel.jsx'
@@ -7,7 +8,8 @@ import SettingsPanel from './components/SettingsPanel/SettingsPanel.jsx'
 export default function App() {
   const [session, setSession] = useState(null)
   const [checking, setChecking] = useState(true)
-  // { step: number, meta: object|null }
+  // null = show selector; string = active tutorial id
+  const [activeTutorialId, setActiveTutorialId] = useState(null)
   const [tutorialProgress, setTutorialProgress] = useState(null)
 
   useEffect(() => {
@@ -15,7 +17,12 @@ export default function App() {
     if (!saved) { setChecking(false); return }
     fetch(`/api/sessions/${saved}`)
       .then((r) => r.ok ? r.json() : null)
-      .then((s) => { setSession(s || null); setChecking(false) })
+      .then((s) => {
+        setSession(s || null)
+        // Restore active tutorial if session had one
+        if (s?.tutorialId) setActiveTutorialId(s.tutorialId)
+        setChecking(false)
+      })
       .catch(() => setChecking(false))
   }, [])
 
@@ -32,6 +39,24 @@ export default function App() {
   const handleLogout = () => {
     localStorage.removeItem('sc101_session_id')
     setSession(null)
+    setActiveTutorialId(null)
+    setTutorialProgress(null)
+  }
+
+  const handleTutorialSelect = (updatedSession) => {
+    setSession(updatedSession)
+    setActiveTutorialId(updatedSession.tutorialId)
+  }
+
+  const handleBackToSelector = async () => {
+    // Clear active tutorial from session
+    const s = await fetch(`/api/sessions/${session.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tutorialId: null }),
+    }).then((r) => r.json()).catch(() => null)
+    if (s) setSession(s)
+    setActiveTutorialId(null)
     setTutorialProgress(null)
   }
 
@@ -44,13 +69,31 @@ export default function App() {
   }
 
   if (!session) {
-    return <LoginScreen onSession={setSession} />
+    return <LoginScreen onSession={(s) => { setSession(s); setActiveTutorialId(s.tutorialId ?? null) }} />
+  }
+
+  if (!activeTutorialId) {
+    return (
+      <TutorialSelector
+        session={session}
+        onSelect={handleTutorialSelect}
+        onLogout={handleLogout}
+      />
+    )
   }
 
   return (
     <div className="sc101-app">
       <nav className="sc101-nav">
         <span className="sc101-nav-brand">
+          <button
+            onClick={handleBackToSelector}
+            className="sc101-nav-text-btn"
+            title="Back to tutorial list"
+            style={{ marginRight: '0.5rem' }}
+          >
+            ← Tutorials
+          </button>
           <span className="sc101-nav-logo">SC</span>
           SC101 Lab Interface
         </span>
@@ -67,6 +110,7 @@ export default function App() {
       </nav>
       <div className="sc101-body">
         <TutorialPane
+          tutorialId={activeTutorialId}
           session={session}
           onRunCommand={handleRunCommand}
           onProgress={setTutorialProgress}

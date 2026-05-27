@@ -9,6 +9,8 @@ description: >
 difficulty: intermediate
 time: 45
 tags: [snap, c, confinement, interfaces, network, home, ubuntu]
+requires:
+  - hello-snap
 
 environment:
   dev:

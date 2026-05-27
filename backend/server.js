@@ -66,8 +66,8 @@ app.post('/api/sessions', (req, res) => {
 })
 
 app.patch('/api/sessions/:id', (req, res) => {
-  const { currentStep } = req.body || {}
-  const s = sessions.update(req.params.id, { currentStep })
+  const { currentStep, tutorialId, totalSteps, status } = req.body || {}
+  const s = sessions.update(req.params.id, { currentStep, tutorialId, totalSteps, status })
   if (!s) return res.status(404).json({ error: 'Session not found' })
   res.json(s)
 })
@@ -84,6 +84,54 @@ app.get('/api/tutorials/:id/meta', (req, res) => {
   const meta = loadTutorialMeta(req.params.id)
   if (!meta) return res.status(404).json({ error: 'Tutorial not found' })
   res.json(meta)
+})
+
+// Validate a tutorial — checks frontmatter, required fields, step files
+app.get('/api/tutorials/:id/validate', (req, res) => {
+  const errors = []
+  const tutId = req.params.id
+  const dir = path.join(TUTORIALS_DIR, tutId)
+
+  if (!fs.existsSync(dir)) return res.status(404).json({ valid: false, errors: [{ file: 'index.md', message: 'Tutorial folder not found' }] })
+
+  const indexPath = path.join(dir, 'index.md')
+  if (!fs.existsSync(indexPath)) {
+    return res.json({ valid: false, errors: [{ file: 'index.md', message: 'index.md is missing' }] })
+  }
+
+  let meta
+  try {
+    const { data } = matter(fs.readFileSync(indexPath, 'utf8'))
+    meta = data
+  } catch (e) {
+    return res.json({ valid: false, errors: [{ file: 'index.md', message: `YAML parse error: ${e.message}` }] })
+  }
+
+  for (const field of ['id', 'title', 'steps']) {
+    if (!meta[field]) errors.push({ file: 'index.md', message: `Missing required field: "${field}"` })
+  }
+
+  if (!Array.isArray(meta.steps)) {
+    errors.push({ file: 'index.md', message: '"steps" must be a list' })
+  } else {
+    meta.steps.forEach((step, i) => {
+      if (!step.file) { errors.push({ file: 'index.md', message: `Step ${i + 1} is missing "file"` }); return }
+      if (!step.title) errors.push({ file: step.file, message: 'Missing "title" in step entry' })
+      const stepPath = path.join(dir, step.file)
+      if (!fs.existsSync(stepPath)) {
+        errors.push({ file: step.file, message: 'File not found' })
+        return
+      }
+      try {
+        const { data: sd } = matter(fs.readFileSync(stepPath, 'utf8'))
+        if (!sd.title) errors.push({ file: step.file, message: 'Missing "title" in frontmatter' })
+      } catch (e) {
+        errors.push({ file: step.file, message: `YAML parse error: ${e.message}` })
+      }
+    })
+  }
+
+  res.json({ valid: errors.length === 0, errors })
 })
 
 // Get a single step's markdown (strips frontmatter before sending)

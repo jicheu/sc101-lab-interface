@@ -6,7 +6,7 @@ import 'prismjs/components/prism-c'
 import 'prismjs/components/prism-yaml'
 import 'prismjs/themes/prism-tomorrow.css'
 
-const TUTORIAL_ID = 'hello-snap'
+marked.use({ breaks: true })
 
 function buildRenderer(onRunCommand) {
   const renderer = new Renderer()
@@ -41,10 +41,8 @@ function escapeAttr(s) {
   return s.replace(/"/g, '&quot;').replace(/\n/g, '&#10;')
 }
 
-marked.use({ breaks: true })
-
-export default function TutorialPane({ session, onRunCommand, onProgress }) {
-  const tutorialId = session?.tutorialId ?? TUTORIAL_ID
+export default function TutorialPane({ tutorialId: tutorialIdProp, session, onRunCommand, onProgress }) {
+  const tutorialId = tutorialIdProp ?? session?.tutorialId ?? 'hello-snap'
   const [meta, setMeta] = useState(null)
   const [stepIndex, setStepIndex] = useState(session?.currentStep ?? 0)
   const [html, setHtml] = useState('')
@@ -73,13 +71,20 @@ export default function TutorialPane({ session, onRunCommand, onProgress }) {
   }, [meta, stepIndex]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (!session?.id) return
+    if (!session?.id || !meta) return
+    const total = meta?.steps?.length ?? 0
+    const isLast = stepIndex >= total - 1
     fetch(`/api/sessions/${session.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ currentStep: stepIndex }),
+      body: JSON.stringify({
+        tutorialId: session.tutorialId,
+        currentStep: stepIndex,
+        totalSteps: total,
+        status: isLast ? 'completed' : 'in-progress',
+      }),
     }).catch(() => {})
-  }, [stepIndex, session?.id])
+  }, [stepIndex, session?.id, meta]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Report progress upward whenever step or meta changes
   useEffect(() => {
