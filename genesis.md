@@ -379,6 +379,28 @@ This ensures that by the time the new `meta` arrives, `stepIndex` is already `0`
 
 ---
 
+## Phase 18 — Bug fix: Makefile missing separator error in tutorial 2
+
+**Instruction:**  
+Running the Makefile in tutorial 2 (snap-confinement, step 2) fails with `Makefile:6: *** missing separator. Stop.`
+
+**Root cause:**  
+Makefile recipe lines require a literal tab character. The step used a heredoc with real tab characters in the markdown source, but `marked` strips/normalises whitespace when extracting the inner text of a fenced code block for the run button. The tabs become spaces, and `make` rejects them.
+
+**Fix:**  
+Replace the `cat > Makefile << 'EOF' ... EOF` heredoc with a single `printf` command using explicit `\t` escape sequences — these are not affected by the markdown parser:
+
+```bash
+printf 'CC      = gcc\nCFLAGS  = -Wall -O2\nLDFLAGS = -lcurl\n\ninspire: inspire.c\n\t$(CC) $(CFLAGS) -o inspire inspire.c $(LDFLAGS)\n\nclean:\n\trm -f inspire\n' > ~/inspire/src/Makefile
+```
+
+**General rule for future tutorials:** Never use heredocs with tab-indented content in run-button code blocks. Use `printf` with `\t` instead.
+
+**File changed:** `tutorials/snap-confinement/step2.md`  
+**Commit:** `aafba5c` — `fix: use printf for Makefile to preserve tab characters`
+
+---
+
 ## Standing instruction (Phase 17+)
 
 > **Always update `genesis.md` after every change to the project**, no matter how small. Add a new Phase section describing: the instruction given, the implementation, any pitfalls encountered, and the commit SHA.
@@ -436,6 +458,7 @@ sc101-lab-interface/
 | File modification visibility | Overwriting files loses diff context | Use diff blocks + `sed` (INSTRUCTIONS.md Rule 3) |
 | Step navigation stays at bottom | Overflow container scroll not reset on re-render | `contentRef.current?.scrollTo({ top: 0, behavior: 'instant' })` at start of step-load effect |
 | "Next tutorial" shows wrong step + crash | React batches state; new `meta` arrives before `stepIndex` resets | Reset all state (`stepIndex`, `meta`, `html`, etc.) in the same `tutorialId` `useEffect` |
+| Makefile recipe lines become spaces | `marked` strips tab characters from code blocks before "run" sends them to terminal | Replace heredoc with `printf '...\t...'` — `\t` escapes survive the markdown→terminal pipeline |
 
 ---
 
