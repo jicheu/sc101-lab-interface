@@ -28,16 +28,31 @@ Under strict confinement, AppArmor blocks **all outgoing network connections** b
 
 ### Inspect the AppArmor denial
 
-The kernel logs every blocked call. Let's see it:
+AppArmor writes denials to the kernel ring buffer. Read it with:
 
 ```bash run
-journalctl --no-pager -g 'apparmor.*DENIED.*inspire' | tail -5
+dmesg | grep -i 'apparmor.*DENIED' | tail -5
 ```
 
-You will see a `DENIED` entry containing `operation="connect"` or similar — this is AppArmor enforcing the sandbox boundary.
+You should see a line like:
+
+```
+[...] audit: type=1400 audit(...): apparmor="DENIED" operation="connect" profile="snap.inspire.inspire" ...
+```
+
+Key fields to notice:
+- `apparmor="DENIED"` — the action was blocked
+- `profile="snap.inspire.inspire"` — the sandboxed process (`<snap>.<app>`)
+- `operation="connect"` — a network socket call was attempted
+
+If `dmesg` shows nothing, try reading from the journal's kernel facility:
+
+```bash run
+journalctl -k --no-pager | grep -i apparmor | tail -5
+```
 
 > 📖 **Concept — AppArmor**  
-> AppArmor is a Linux Security Module that enforces per-process access control profiles. Snapd generates an AppArmor profile for every strictly confined snap. Any call not explicitly allowed in the profile is denied and logged.  
+> AppArmor is a Linux Security Module that enforces per-process access control profiles. Snapd generates an AppArmor profile for every strictly confined snap. Any call not explicitly allowed in the profile is denied and logged to the kernel ring buffer.  
 > Official reference: https://snapcraft.io/docs/security-sandboxing
 
 ## What we learned
