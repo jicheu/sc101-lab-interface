@@ -457,6 +457,32 @@ Also added `gcc` to `build-packages` (was previously implicit).
 
 ---
 
+## Phase 21 — Fix: snap command name + network API
+
+**Instruction:**  
+Two bugs reported after running the snap:
+1. `inspire.inspire` command not found
+2. Network timeout when fetching quote
+
+**Bug 1 — `inspire.inspire` command not found:**  
+When snap name == app name, snapcraft exposes the command as just `<snap-name>` (not `<snap-name>.<app-name>`). The double-name form is only needed when the snap exposes multiple apps. Corrected `inspire.inspire` → `inspire` in step3.md (1 place) and step4.md (3 places).
+
+**Bug 2 — Network timeout:**  
+`zenquotes.io` is unreliable or blocked in cloud/LXD container environments. Switched to `https://api.quotable.io/random`, a more reliable free API with compatible JSON structure (`content`/`author` fields instead of `q`/`a`).
+
+**Files changed:**
+- `tutorials/snap-confinement/step2.md` — C source: new API URL, new JSON field names (`content`, `author`)
+- `tutorials/snap-confinement/step3.md` — snapcraft.yaml description text + run command
+- `tutorials/snap-confinement/step4.md` — run commands (×3) + expected error message
+
+**General rules for future tutorials:**
+- When snap name == app name, run command is just `<snap-name>`, not `<snap-name>.<app-name>`
+- Prefer `api.quotable.io/random` over zenquotes.io for quote fetching in lab environments
+
+**Commit:** `7b02904` — `fix: snap command name and network API in snap-confinement tutorial`
+
+---
+
 ## Standing instruction (Phase 17+)
 
 > **Always update `genesis.md` after every change to the project**, no matter how small. Add a new Phase section describing: the instruction given, the implementation, any pitfalls encountered, and the commit SHA.
