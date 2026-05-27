@@ -621,6 +621,20 @@ journalctl --no-pager | grep -i 'apparmor.*DENIED' | tail -5
 
 ---
 
+## Phase 27 — Fix: snap-store-upload missing from "Creating Ubuntu Core image" section
+
+**Instruction:**  
+Tutorial #4 ("How to upload a snap to the Snap Store") was missing from the "Creating Ubuntu Core image" section in the selector.
+
+**Root cause:**  
+The `snap-store-upload/index.md` had `section: "Publishing Snaps"` instead of `section: "Creating Ubuntu Core image"`.
+
+**Fix:** Changed the `section` field to match the other three UC image tutorials.
+
+**Commit:** `c9aa4b5`
+
+---
+
 ## Standing instruction (Phase 17+)
 
 > **Always update `genesis.md` after every change to the project**, no matter how small. Add a new Phase section describing: the instruction given, the implementation, any pitfalls encountered, and the commit SHA.
