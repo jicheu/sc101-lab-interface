@@ -238,7 +238,14 @@ app.get('/api/setup/check', (_req, res) => {
 // ── KillerCoda format converter ───────────────────────────────────────────────
 // Converts a KillerCoda tutorial folder (index.json + intro.md + stepN.md + finish.md)
 // into SC101 format (index.md with YAML frontmatter + individual step files).
-function convertKillercodaTutorial(srcDir, destDir, courseName) {
+function normalizeTutorialName(name) {
+  return (name || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
+function convertKillercodaTutorial(srcDir, destDir, courseName, fallbackName = path.basename(destDir)) {
   const idxPath = path.join(srcDir, 'index.json')
   if (!fs.existsSync(idxPath)) return { ok: false, error: 'No index.json found' }
 
@@ -247,7 +254,7 @@ function convertKillercodaTutorial(srcDir, destDir, courseName) {
     return { ok: false, error: `Failed to parse index.json: ${e.message}` }
   }
 
-  const title       = kc.title || path.basename(srcDir)
+  const title       = kc.title || toTitleCase(fallbackName)
   const description = kc.description || ''
   const details     = kc.details || {}
   const kcSteps     = details.steps || []
@@ -271,43 +278,36 @@ function convertKillercodaTutorial(srcDir, destDir, courseName) {
   if (stepFiles.length === 0) return { ok: false, error: 'No step files found' }
 
   // Derive a safe tutorial id from the folder name
-  const folderId = path.basename(srcDir).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+  const folderId = normalizeTutorialName(path.basename(destDir))
 
-  // Build YAML frontmatter
-  const stepsYaml = stepFiles.map((s) => `  - file: ${s.file}\n    title: "${s.title.replace(/"/g, "'")}"`).join('\n')
-  const indexMd = `---
-id: ${folderId}
-title: "${title.replace(/"/g, "'")}"
-description: >
-  ${description.replace(/\n/g, '\n  ')}
-difficulty: beginner
-time: 30
-section: "Imported"
-tags: [imported, killercoda]
-
-steps:
-${stepsYaml}
----
-
-${description}
-
-> _Imported from KillerCoda format._
-`
+  const indexMd = matter.stringify(
+    `${description}\n\n> _Imported from KillerCoda format._\n`,
+    {
+      id: folderId,
+      title,
+      description,
+      difficulty: 'beginner',
+      time: 30,
+      section: 'Imported',
+      tags: ['imported', 'killercoda'],
+      steps: stepFiles,
+    }
+  )
 
   // Copy files to destDir
   try { fs.mkdirSync(destDir, { recursive: true }) } catch (e) {
     return { ok: false, error: `Cannot create tutorial dir: ${e.message}` }
   }
 
-  fs.writeFileSync(path.join(destDir, 'index.md'), indexMd, 'utf8')
-
   // Copy all .md files, converting {{execute}} → fenced run blocks
   for (const entry of fs.readdirSync(srcDir)) {
-    if (!entry.endsWith('.md')) continue
+    if (!entry.endsWith('.md') || entry === 'index.md') continue
     const src = fs.readFileSync(path.join(srcDir, entry), 'utf8')
     const converted = convertKillercodaMarkdown(src)
     fs.writeFileSync(path.join(destDir, entry), converted, 'utf8')
   }
+
+  fs.writeFileSync(path.join(destDir, 'index.md'), indexMd, 'utf8')
 
   // Copy any other non-.json, non-.git, non-.sh files (assets etc.)
   for (const entry of fs.readdirSync(srcDir)) {
@@ -407,7 +407,7 @@ app.post('/api/tutorials/import', (req, res) => {
     else if (fs.existsSync(tutorialDir)) {
       allErrors.push(`Tutorial "${repoName}" already exists in course "${courseName}". Delete it first.`)
     } else {
-      const { errors, warnings } = validateSc101Tutorial(tmpCloneDir)
+      const { errors, warnings } = validateSc101Tutorial(tmpCloneDir, repoName)
       if (errors.length > 0) {
         allErrors.push(...errors)
       } else {
@@ -424,7 +424,7 @@ app.post('/api/tutorials/import', (req, res) => {
     else if (fs.existsSync(tutorialDir)) {
       allErrors.push(`Tutorial "${repoName}" already exists. Delete it first.`)
     } else {
-      const result = convertKillercodaTutorial(tmpCloneDir, tutorialDir, courseName)
+      const result = convertKillercodaTutorial(tmpCloneDir, tutorialDir, courseName, repoName)
       if (!result.ok) allErrors.push(result.error)
       else {
         const meta = loadTutorialMeta(courseName, repoName)
@@ -441,7 +441,7 @@ app.post('/api/tutorials/import', (req, res) => {
         allWarnings.push(`Skipped "${subDir}": already exists in course "${courseName}"`)
         continue
       }
-      const result = convertKillercodaTutorial(path.join(tmpCloneDir, subDir), tutorialDir, courseName)
+      const result = convertKillercodaTutorial(path.join(tmpCloneDir, subDir), tutorialDir, courseName, subDir)
       if (!result.ok) {
         allWarnings.push(`Skipped "${subDir}": ${result.error}`)
       } else {
@@ -495,10 +495,10 @@ function autoDiscoverSteps(dir) {
     .map((f) => ({ file: f, title: toTitleCase(f.replace(/\.md$/, '')) }))
 }
 
-function validateSc101Tutorial(dir) {
+function validateSc101Tutorial(dir, fallbackName = path.basename(dir)) {
   const errors = []
   const warnings = []
-  const folderName = path.basename(dir)
+  const folderName = fallbackName
   const indexPath = path.join(dir, 'index.md')
 
   if (!fs.existsSync(indexPath)) {
