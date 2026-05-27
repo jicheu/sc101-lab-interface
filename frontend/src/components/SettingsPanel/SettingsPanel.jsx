@@ -35,11 +35,20 @@ export default function SettingsPanel({ session, tutorialProgress }) {
   }, [open])
 
   const [exportError, setExportError] = useState(null)
+  const [exportStatus, setExportStatus] = useState(null)
+
+  function formatBytes(bytes) {
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`
+    if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`
+    return `${(bytes / 1024 ** 3).toFixed(2)} GB`
+  }
 
   const handleExport = async () => {
     if (!session || exporting) return
     setExporting(true)
     setExportError(null)
+    setExportStatus('Requesting export from server…')
     try {
       const res = await fetch(`/api/sessions/${session.id}/export`)
       if (!res.ok) {
@@ -47,7 +56,13 @@ export default function SettingsPanel({ session, tutorialProgress }) {
         try { const d = await res.json(); msg = d.error || msg } catch {}
         throw new Error(msg)
       }
+      // Content-Length is available as soon as response headers arrive
+      const contentLength = res.headers.get('content-length')
+      const sizeLabel = contentLength ? formatBytes(parseInt(contentLength, 10)) : null
+      setExportStatus(sizeLabel ? `Downloading ${sizeLabel}…` : 'Downloading…')
       const blob = await res.blob()
+      const actualSize = formatBytes(blob.size)
+      setExportStatus(`Saving ${actualSize}…`)
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
@@ -56,8 +71,11 @@ export default function SettingsPanel({ session, tutorialProgress }) {
       link.click()
       document.body.removeChild(link)
       URL.revokeObjectURL(url)
+      setExportStatus(`✓ Downloaded — ${actualSize}`)
+      setTimeout(() => setExportStatus(null), 6000)
     } catch (err) {
       setExportError(err.message)
+      setExportStatus(null)
     } finally {
       setExporting(false)
     }
@@ -125,14 +143,21 @@ export default function SettingsPanel({ session, tutorialProgress }) {
                 >
                   {exporting ? '⏳ Exporting…' : '⬇ Download LXC image'}
                 </button>
+                {exportStatus && (
+                  <div className={`sc101-settings-meta sc101-export-status${exportStatus.startsWith('✓') ? ' is-done' : ''}`}>
+                    {exportStatus}
+                  </div>
+                )}
                 {exportError && (
-                  <div className="sc101-settings-meta" style={{ color: '#c7162b', marginTop: '0.375rem' }}>
+                  <div className="sc101-settings-meta" style={{ color: '#c7162b' }}>
                     ✕ {exportError}
                   </div>
                 )}
-                <div className="sc101-settings-meta" style={{ marginTop: '0.375rem' }}>
-                  Exports container as .tar.gz
-                </div>
+                {!exportStatus && !exportError && (
+                  <div className="sc101-settings-meta">
+                    Exports container as .tar.gz
+                  </div>
+                )}
               </div>
 
               <div className="sc101-settings-divider" />
