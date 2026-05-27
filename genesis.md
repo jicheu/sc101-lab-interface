@@ -591,6 +591,36 @@ Added documentation of the snap profile name format: `snap.<snap-name>.<app-name
 
 ---
 
+## Phase 26 — Fix: use /var/log/syslog for AppArmor denials (dmesg blocked in LXD)
+
+**Instruction:**  
+`dmesg` fails with `Operation not permitted` even as root.
+
+**Root cause:**  
+LXD unprivileged containers do not have `CAP_SYSLOG`, which is required to read the kernel ring buffer via `dmesg`. This cannot be worked around without changing the container configuration.
+
+**Fix:**  
+AppArmor audit entries are also written to syslog (`/var/log/syslog`), which is readable by root without `CAP_SYSLOG`:
+
+```bash
+grep -i 'apparmor.*DENIED' /var/log/syslog | tail -5
+```
+
+Fallback if syslog is empty:
+```bash
+journalctl --no-pager | grep -i 'apparmor.*DENIED' | tail -5
+```
+
+**Files changed:**
+- `tutorials/snap-confinement/step5.md`
+- `tutorials/snap-confinement/step3.md`
+
+**General rule for future tutorials:** In LXD container environments, always use `/var/log/syslog` (not `dmesg`, not `journalctl -k`) to inspect AppArmor audit events.
+
+**Commit:** `70512d3` — `fix: use /var/log/syslog for AppArmor denials in LXD containers`
+
+---
+
 ## Standing instruction (Phase 17+)
 
 > **Always update `genesis.md` after every change to the project**, no matter how small. Add a new Phase section describing: the instruction given, the implementation, any pitfalls encountered, and the commit SHA.
