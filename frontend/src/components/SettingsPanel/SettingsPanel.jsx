@@ -34,18 +34,33 @@ export default function SettingsPanel({ session, tutorialProgress }) {
     return () => document.removeEventListener('keydown', handle)
   }, [open])
 
-  const handleExport = () => {
+  const [exportError, setExportError] = useState(null)
+
+  const handleExport = async () => {
     if (!session || exporting) return
     setExporting(true)
-    // Trigger a browser download; the fetch completes in the background
-    const link = document.createElement('a')
-    link.href = `/api/sessions/${session.id}/export`
-    link.download = `${session.containerName}.tar.gz`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    // Re-enable after a few seconds (the download is async on server side)
-    setTimeout(() => setExporting(false), 5000)
+    setExportError(null)
+    try {
+      const res = await fetch(`/api/sessions/${session.id}/export`)
+      if (!res.ok) {
+        let msg = `Server error ${res.status}`
+        try { const d = await res.json(); msg = d.error || msg } catch {}
+        throw new Error(msg)
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${session.containerName}.tar.gz`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      setExportError(err.message)
+    } finally {
+      setExporting(false)
+    }
   }
 
   const { meta: tutorialMeta, step: currentStep = 0 } = tutorialProgress ?? {}
@@ -108,8 +123,13 @@ export default function SettingsPanel({ session, tutorialProgress }) {
                   onClick={handleExport}
                   disabled={exporting}
                 >
-                  {exporting ? '⏳ Preparing…' : '⬇ Download LXC image'}
+                  {exporting ? '⏳ Exporting…' : '⬇ Download LXC image'}
                 </button>
+                {exportError && (
+                  <div className="sc101-settings-meta" style={{ color: '#c7162b', marginTop: '0.375rem' }}>
+                    ✕ {exportError}
+                  </div>
+                )}
                 <div className="sc101-settings-meta" style={{ marginTop: '0.375rem' }}>
                   Exports container as .tar.gz
                 </div>

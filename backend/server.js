@@ -83,23 +83,27 @@ app.get('/api/sessions/:id/export', (req, res) => {
   const tmpFile = `/tmp/${containerName}-${Date.now()}.tar.gz`
   const filename = `${containerName}.tar.gz`
 
-  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
-  res.setHeader('Content-Type', 'application/gzip')
-  // Inform the client that this may take a while
-  res.setHeader('X-Content-Type-Options', 'nosniff')
-
-  exec(`lxc export ${containerName} ${tmpFile}`, { timeout: 600_000 }, (err) => {
+  // --instance-only: skip images, works on running containers
+  exec(`lxc export ${containerName} ${tmpFile} --instance-only`, { timeout: 600_000 }, (err) => {
     if (err) {
       try { fs.unlinkSync(tmpFile) } catch {}
-      if (!res.headersSent) return res.status(500).json({ error: err.message })
-      return res.end()
+      return res.status(500).json({ error: err.message || 'lxc export failed' })
     }
-    const stat = fs.statSync(tmpFile)
+    let stat
+    try { stat = fs.statSync(tmpFile) } catch (e) {
+      return res.status(500).json({ error: 'Export file not found after export' })
+    }
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+    res.setHeader('Content-Type', 'application/gzip')
     res.setHeader('Content-Length', stat.size)
     const stream = fs.createReadStream(tmpFile)
     stream.pipe(res)
     stream.on('close', () => { try { fs.unlinkSync(tmpFile) } catch {} })
-    stream.on('error', () => { try { fs.unlinkSync(tmpFile) } catch {} })
+    stream.on('error', (e) => {
+      console.error('[export] stream error:', e)
+      try { fs.unlinkSync(tmpFile) } catch {}
+      if (!res.headersSent) res.status(500).end()
+    })
   })
 })
 
