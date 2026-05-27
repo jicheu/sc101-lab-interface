@@ -645,6 +645,37 @@ The `snap-store-upload/index.md` had `section: "Publishing Snaps"` instead of `s
 
 ---
 
+## Phase 29 — Tree layout for tutorial sections
+
+**Instruction:**  
+Dependent tutorials should appear on the same line/row as siblings, not scattered in a flat grid.
+
+**Implementation:**  
+`buildSectionGroups(list)` computes a dependency tree within each section:
+- Identifies "local roots" = tutorials with no `requires` pointing inside the same section
+- Maps each root to its direct dependents (children)
+- Returns `[{ root, children[] }, ...]`
+
+Render pattern:
+```
+[root card]        ← own full-width row
+  [child] [child]  ← sibling row, indented with left border
+[root card]        ← next independent root, own row
+```
+
+Result for "Creating Ubuntu Core image":
+```
+[uc-basic-image]
+  ├── [uc-user-assertion]  [uc-customize-image]
+[uc-gadget-snap]
+```
+
+CSS additions: `.sc101-tut-group`, `.sc101-tutorial-grid--root` (capped width), `.sc101-tutorial-grid--children` (left-indented with border).
+
+**Commit:** `8ed9a91` — `feat: tree layout for tutorial sections`
+
+---
+
 ## Standing instruction (Phase 17+)
 
 > **Always update `genesis.md` after every change to the project**, no matter how small. Add a new Phase section describing: the instruction given, the implementation, any pitfalls encountered, and the commit SHA.
