@@ -67,12 +67,12 @@ int main(void)
     filename[strcspn(filename, "\n")] = '\0';
     if (filename[0] == '\0') { fprintf(stderr, "No filename given.\n"); return 1; }
 
-    /* Fetch a random trivia fact (plain HTTP, plain text response) */
+    /* Fetch public IP — plain HTTP, returns a single line of text */
     CURL *curl = curl_easy_init();
     if (!curl) { fprintf(stderr, "curl_easy_init failed\n"); return 1; }
 
     struct Buffer buf = {0};
-    curl_easy_setopt(curl, CURLOPT_URL, "http://numbersapi.com/random/trivia");
+    curl_easy_setopt(curl, CURLOPT_URL, "http://icanhazip.com");
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_cb);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &buf);
     curl_easy_setopt(curl, CURLOPT_USERAGENT, "inspire-snap/1.0");
@@ -88,13 +88,16 @@ int main(void)
         return 1;
     }
 
-    /* Write to file */
+    /* Strip trailing newline */
+    if (buf.data) buf.data[strcspn(buf.data, "\r\n")] = '\0';
+
     FILE *f = fopen(filename, "w");
-    if (!f) { perror("Cannot open file"); return 1; }
-    fprintf(f, "%s\n", buf.data ? buf.data : "(no content)");
+    if (!f) { perror("Cannot open file"); free(buf.data); return 1; }
+    fprintf(f, "Your public IP address is: %s\n", buf.data ? buf.data : "(unknown)");
     fclose(f);
 
-    printf("\nSaved to %s:\n\n%s\n\n", filename, buf.data ? buf.data : "(no content)");
+    printf("\nSaved to %s:\nYour public IP address is: %s\n\n",
+           filename, buf.data ? buf.data : "(unknown)");
     free(buf.data);
     return 0;
 }

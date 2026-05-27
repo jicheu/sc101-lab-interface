@@ -33,7 +33,7 @@ version: '1.0'
 summary: Fetch an inspirational quote and save it to a file
 description: |
   inspire asks for a filename, fetches a random trivia fact from
-  numbersapi.com, and writes it to the specified file.
+  icanhazip.com (returns your public IP), and writes it to the specified file.
 
 grade: devel
 confinement: devmode
