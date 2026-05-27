@@ -173,6 +173,68 @@ app.delete('/api/sessions/:id', (req, res) => {
 
 // ── Tutorial API ──────────────────────────────────────────────────────────────
 
+// Setup prerequisites check
+app.get('/api/setup/check', (_req, res) => {
+  const { spawnSync: sp } = require('child_process')
+  function check(cmd, args) {
+    try {
+      const r = sp(cmd, args, { encoding: 'utf8' })
+      if (r.error || r.status !== 0) return null
+      return (r.stdout || '').trim().split('\n')[0] || 'ok'
+    } catch { return null }
+  }
+
+  const lxdVersion   = check('lxc', ['version'])
+  const lxdInitDone  = check('lxc', ['network', 'list', '--format', 'csv'])
+  const snapcraftVer = check('snapcraft', ['--version'])
+  const nodeVer      = check('node', ['--version'])
+  const npmVer       = check('npm', ['--version'])
+
+  res.json({
+    checks: [
+      {
+        id: 'lxd',
+        label: 'LXD installed',
+        ok: !!lxdVersion,
+        version: lxdVersion,
+        fix: 'sudo snap install lxd',
+        docs: 'https://documentation.ubuntu.com/lxd/en/latest/installing/',
+      },
+      {
+        id: 'lxd-init',
+        label: 'LXD initialised (network + storage pool)',
+        ok: lxdInitDone !== null,
+        fix: 'lxd init --auto',
+        docs: 'https://documentation.ubuntu.com/lxd/en/latest/getting_started/',
+      },
+      {
+        id: 'snapcraft',
+        label: 'Snapcraft installed',
+        ok: !!snapcraftVer,
+        version: snapcraftVer,
+        fix: 'sudo snap install snapcraft --classic',
+        docs: 'https://snapcraft.io/docs/snapcraft-overview',
+      },
+      {
+        id: 'node',
+        label: 'Node.js 18+ installed',
+        ok: !!nodeVer,
+        version: nodeVer,
+        fix: 'sudo snap install node --classic --channel 20',
+        docs: 'https://nodejs.org/',
+      },
+      {
+        id: 'npm',
+        label: 'npm installed',
+        ok: !!npmVer,
+        version: npmVer,
+        fix: null,   // bundled with node
+        docs: null,
+      },
+    ],
+  })
+})
+
 // List all available tutorials
 app.get('/api/tutorials', (_req, res) => {
   try {
