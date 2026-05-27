@@ -3,3 +3,7 @@ dist/
 .env
 *.log
 backend/data/sessions.json
+
+# Vim swap files
+*.swp
+*.swo
