@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { marked, Renderer } from 'marked'
 import Prism from 'prismjs'
 import 'prismjs/components/prism-bash'
@@ -48,6 +48,7 @@ export default function TutorialPane({ tutorialId: tutorialIdProp, session, onRu
   const [html, setHtml] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const contentRef = useRef(null)
 
   useEffect(() => {
     fetch(`/api/tutorials/${tutorialId}/meta`)
@@ -60,6 +61,8 @@ export default function TutorialPane({ tutorialId: tutorialIdProp, session, onRu
     if (!meta) return
     setLoading(true)
     setError(null)
+    // Scroll content pane to top whenever the step changes
+    contentRef.current?.scrollTo({ top: 0, behavior: 'instant' })
     fetch(`/api/tutorials/${tutorialId}/step/${stepIndex}`)
       .then((r) => r.json())
       .then(({ markdown }) => {
@@ -113,7 +116,7 @@ export default function TutorialPane({ tutorialId: tutorialIdProp, session, onRu
         </span>
       </div>
 
-      <div className="sc101-tutorial-content" onClick={handleContentClick}>
+      <div className="sc101-tutorial-content" ref={contentRef} onClick={handleContentClick}>
         {stepTitle && <h1>{stepTitle}</h1>}
         {loading && <p style={{ color: 'var(--sc101-fg-muted)' }}>Loading…</p>}
         {error && <p style={{ color: '#c7162b' }}>Error: {error}</p>}
