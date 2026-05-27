@@ -1361,3 +1361,34 @@ body.is-dark pre[class*='language-'] {
   border-top: 1px solid var(--sc101-border);
   margin-top: 0.5rem;
 }
+
+/* ── GitHub import ──────────────────────────────────────────────────────────── */
+.sc101-import-input {
+  width: 100%;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.8rem;
+  border: 1px solid var(--sc101-border);
+  border-radius: 0.25rem;
+  background: var(--sc101-bg);
+  color: var(--sc101-fg);
+  font-family: inherit;
+}
+.sc101-import-input:focus {
+  outline: none;
+  border-color: var(--sc101-accent);
+}
+.sc101-import-input::placeholder { color: var(--sc101-fg-muted); }
+.sc101-import-result {
+  font-size: 0.8rem;
+  border-radius: 0.3rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid;
+}
+.sc101-import-result.is-ok    { border-color: #0e8420; background: rgba(14,132,32,0.07); color: var(--sc101-fg); }
+.sc101-import-result.is-error { border-color: #c7162b; background: rgba(199,22,43,0.07); color: var(--sc101-fg); }
+.sc101-import-warnings {
+  margin: 0.3rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.75rem;
+  color: var(--sc101-fg-muted);
+}

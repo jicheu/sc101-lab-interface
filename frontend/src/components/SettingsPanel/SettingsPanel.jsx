@@ -58,6 +58,33 @@ export default function SettingsPanel({ session, tutorialProgress }) {
     })
   }
 
+  // GitHub tutorial import
+  const [importOpen, setImportOpen]     = useState(false)
+  const [importUrl, setImportUrl]       = useState('')
+  const [importCourse, setImportCourse] = useState('')
+  const [importing, setImporting]       = useState(false)
+  const [importResult, setImportResult] = useState(null)  // { ok, error, errors, warnings, meta }
+
+  const handleImport = async () => {
+    if (!importUrl.trim() || importing) return
+    setImporting(true)
+    setImportResult(null)
+    try {
+      const res = await fetch('/api/tutorials/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: importUrl.trim(), course: importCourse.trim() || undefined }),
+      })
+      const data = await res.json()
+      if (!res.ok) setImportResult({ ok: false, ...data })
+      else { setImportResult({ ok: true, ...data }); setImportUrl(''); setImportCourse('') }
+    } catch (e) {
+      setImportResult({ ok: false, error: e.message })
+    } finally {
+      setImporting(false)
+    }
+  }
+
   function formatBytes(bytes) {
     if (bytes < 1024) return `${bytes} B`
     if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`
@@ -204,6 +231,78 @@ export default function SettingsPanel({ session, tutorialProgress }) {
                 </button>
               ))}
             </div>
+          </div>
+
+          <div className="sc101-settings-divider" />
+
+          {/* Import tutorial from GitHub */}
+          <div className="sc101-settings-section">
+            <button
+              className="sc101-download-btn"
+              onClick={() => { setImportOpen((v) => !v); setImportResult(null) }}
+            >
+              ⬇ Import tutorial from GitHub
+              <span style={{ marginLeft: 'auto', fontSize: '0.75rem' }}>{importOpen ? '▲' : '▼'}</span>
+            </button>
+
+            {importOpen && (
+              <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                <input
+                  className="sc101-import-input"
+                  type="url"
+                  placeholder="https://github.com/owner/repo"
+                  value={importUrl}
+                  onChange={(e) => { setImportUrl(e.target.value); setImportResult(null) }}
+                  disabled={importing}
+                />
+                <input
+                  className="sc101-import-input"
+                  type="text"
+                  placeholder="Course name (optional, e.g. My Course)"
+                  value={importCourse}
+                  onChange={(e) => setImportCourse(e.target.value)}
+                  disabled={importing}
+                />
+                <button
+                  className="sc101-download-btn"
+                  onClick={handleImport}
+                  disabled={importing || !importUrl.trim()}
+                >
+                  {importing ? '⏳ Importing…' : '⬇ Import'}
+                </button>
+
+                {importResult && importResult.ok && (
+                  <div className="sc101-import-result is-ok">
+                    <div>✓ Imported <strong>{importResult.meta?.title || importResult.tutorial}</strong></div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--sc101-fg-muted)' }}>
+                      Course: {importResult.course?.replace(/_/g, ' ')} · UID: {importResult.uid}
+                    </div>
+                    {importResult.warnings?.length > 0 && (
+                      <ul className="sc101-import-warnings">
+                        {importResult.warnings.map((w, i) => <li key={i}>⚠ {w}</li>)}
+                      </ul>
+                    )}
+                    <div style={{ fontSize: '0.75rem', color: 'var(--sc101-fg-muted)' }}>Refresh the tutorial list to see it.</div>
+                  </div>
+                )}
+
+                {importResult && !importResult.ok && (
+                  <div className="sc101-import-result is-error">
+                    <div>✗ {importResult.error}</div>
+                    {importResult.errors?.length > 0 && (
+                      <ul className="sc101-import-warnings">
+                        {importResult.errors.map((e, i) => <li key={i}>{e}</li>)}
+                      </ul>
+                    )}
+                    {importResult.warnings?.length > 0 && (
+                      <ul className="sc101-import-warnings">
+                        {importResult.warnings.map((w, i) => <li key={i}>⚠ {w}</li>)}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="sc101-settings-divider" />

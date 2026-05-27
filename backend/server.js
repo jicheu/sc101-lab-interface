@@ -235,6 +235,99 @@ app.get('/api/setup/check', (_req, res) => {
   })
 })
 
+// Import a tutorial from a GitHub URL
+app.post('/api/tutorials/import', (req, res) => {
+  const { url, course } = req.body || {}
+  if (!url || typeof url !== 'string') return res.status(400).json({ error: 'url is required' })
+
+  // Validate GitHub URL
+  const ghMatch = url.trim().match(/^https?:\/\/github\.com\/([^/]+\/[^/]+?)(?:\.git)?\/?$/)
+  if (!ghMatch) return res.status(400).json({ error: 'Only GitHub repository URLs are supported (https://github.com/owner/repo)' })
+
+  // Derive course folder name and tutorial folder name from the URL
+  const repoSlug   = ghMatch[1]                       // e.g. "owner/my-tutorial"
+  const repoName   = repoSlug.split('/')[1]            // e.g. "my-tutorial"
+  const courseName = (typeof course === 'string' && course.trim())
+    ? course.trim().replace(/\s+/g, '_')
+    : 'Imported_Tutorials'
+
+  const courseDir  = safeResolve(TUTORIALS_DIR, courseName)
+  if (!courseDir) return res.status(400).json({ error: 'Invalid course name' })
+
+  const tutorialDir = safeResolve(courseDir, repoName)
+  if (!tutorialDir) return res.status(400).json({ error: 'Invalid tutorial directory name derived from repo' })
+
+  // Prevent overwriting an existing tutorial
+  if (fs.existsSync(tutorialDir)) {
+    return res.status(409).json({ error: `Tutorial "${repoName}" already exists in course "${courseName}". Delete it first or choose a different course.` })
+  }
+
+  // Ensure the course directory exists
+  try { fs.mkdirSync(courseDir, { recursive: true }) } catch (e) {
+    return res.status(500).json({ error: `Failed to create course directory: ${e.message}` })
+  }
+
+  // Clone the repo (shallow clone for speed)
+  const { spawnSync: sp } = require('child_process')
+  const cloneResult = sp('git', ['clone', '--depth', '1', '--', url.trim(), tutorialDir], {
+    encoding: 'utf8',
+    timeout: 60_000,
+  })
+
+  if (cloneResult.error || cloneResult.status !== 0) {
+    const msg = (cloneResult.stderr || cloneResult.error?.message || 'git clone failed').trim()
+    try { fs.rmSync(tutorialDir, { recursive: true, force: true }) } catch {}
+    return res.status(422).json({ error: `Clone failed: ${msg}` })
+  }
+
+  // Remove the .git directory so it doesn't interfere with the host repo
+  try { fs.rmSync(path.join(tutorialDir, '.git'), { recursive: true, force: true }) } catch {}
+
+  // Validate tutorial structure
+  const errors = []
+  const warnings = []
+
+  const indexPath = path.join(tutorialDir, 'index.md')
+  if (!fs.existsSync(indexPath)) {
+    errors.push('Missing index.md — every tutorial must have an index.md with YAML frontmatter (id, title, description, steps).')
+  } else {
+    let meta = null
+    try {
+      const { data, content } = matter(fs.readFileSync(indexPath, 'utf8'))
+      meta = data
+
+      if (!data.id)          errors.push('index.md frontmatter is missing required field: id')
+      if (!data.title)       errors.push('index.md frontmatter is missing required field: title')
+      if (!data.description) warnings.push('index.md frontmatter is missing recommended field: description')
+      if (!Array.isArray(data.steps) || data.steps.length === 0) {
+        errors.push('index.md frontmatter must include a non-empty "steps" array')
+      } else {
+        for (const step of data.steps) {
+          if (!step.file) { errors.push(`Step entry missing "file" key: ${JSON.stringify(step)}`); continue }
+          const stepPath = path.join(tutorialDir, step.file)
+          if (!fs.existsSync(stepPath)) errors.push(`Step file referenced in index.md not found: ${step.file}`)
+        }
+      }
+
+      if (!content.trim()) warnings.push('index.md has no body text (the tutorial description shown on the selector screen will be empty)')
+    } catch (e) {
+      errors.push(`Failed to parse index.md: ${e.message}`)
+    }
+  }
+
+  if (errors.length > 0) {
+    // Remove cloned directory on validation failure so the user can fix and re-import
+    try { fs.rmSync(tutorialDir, { recursive: true, force: true }) } catch {}
+    return res.status(422).json({ error: 'Tutorial validation failed', errors, warnings })
+  }
+
+  // Load the tutorial meta to return in the response
+  const tutMeta = loadTutorialMeta(courseName, repoName)
+
+  console.log(`[import] Imported tutorial "${repoName}" into course "${courseName}" from ${url}`)
+  res.json({ ok: true, course: courseName, tutorial: repoName, uid: tutorialUid(courseName, repoName), meta: tutMeta, warnings })
+})
+
 // List all available tutorials
 app.get('/api/tutorials', (_req, res) => {
   try {
