@@ -273,16 +273,21 @@ export default function SettingsPanel({ session, tutorialProgress }) {
 
                 {importResult && importResult.ok && (
                   <div className="sc101-import-result is-ok">
-                    <div>✓ Imported <strong>{importResult.meta?.title || importResult.tutorial}</strong></div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--sc101-fg-muted)' }}>
-                      Course: {importResult.course?.replace(/_/g, ' ')} · UID: {importResult.uid}
-                    </div>
+                    <div>✓ Imported {importResult.imported?.length ?? 1} tutorial(s) into <strong>{importResult.course?.replace(/_/g, ' ')}</strong></div>
+                    {importResult.format && importResult.format !== 'sc101' && (
+                      <div style={{ fontSize: '0.75rem', color: 'var(--sc101-fg-muted)' }}>Converted from KillerCoda format</div>
+                    )}
+                    {importResult.imported?.map((t, i) => (
+                      <div key={i} style={{ fontSize: '0.75rem', color: 'var(--sc101-fg-muted)' }}>
+                        • {t.meta?.title || t.tutorial}
+                      </div>
+                    ))}
                     {importResult.warnings?.length > 0 && (
                       <ul className="sc101-import-warnings">
                         {importResult.warnings.map((w, i) => <li key={i}>⚠ {w}</li>)}
                       </ul>
                     )}
-                    <div style={{ fontSize: '0.75rem', color: 'var(--sc101-fg-muted)' }}>Refresh the tutorial list to see it.</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--sc101-fg-muted)', marginTop: '0.25rem' }}>Refresh the tutorial list to see it.</div>
                   </div>
                 )}
 

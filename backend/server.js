@@ -235,98 +235,273 @@ app.get('/api/setup/check', (_req, res) => {
   })
 })
 
-// Import a tutorial from a GitHub URL
+// ── KillerCoda format converter ───────────────────────────────────────────────
+// Converts a KillerCoda tutorial folder (index.json + intro.md + stepN.md + finish.md)
+// into SC101 format (index.md with YAML frontmatter + individual step files).
+function convertKillercodaTutorial(srcDir, destDir, courseName) {
+  const idxPath = path.join(srcDir, 'index.json')
+  if (!fs.existsSync(idxPath)) return { ok: false, error: 'No index.json found' }
+
+  let kc
+  try { kc = JSON.parse(fs.readFileSync(idxPath, 'utf8')) } catch (e) {
+    return { ok: false, error: `Failed to parse index.json: ${e.message}` }
+  }
+
+  const title       = kc.title || path.basename(srcDir)
+  const description = kc.description || ''
+  const details     = kc.details || {}
+  const kcSteps     = details.steps || []
+  const intro       = details.intro
+  const finish      = details.finish
+
+  // Build ordered step list: intro first, then numbered steps, then finish
+  const stepFiles = []
+  if (intro?.text && fs.existsSync(path.join(srcDir, intro.text))) {
+    stepFiles.push({ file: intro.text, title: 'Introduction' })
+  }
+  for (const s of kcSteps) {
+    if (s.text && fs.existsSync(path.join(srcDir, s.text))) {
+      stepFiles.push({ file: s.text, title: s.title || s.text })
+    }
+  }
+  if (finish?.text && fs.existsSync(path.join(srcDir, finish.text))) {
+    stepFiles.push({ file: finish.text, title: 'Finish' })
+  }
+
+  if (stepFiles.length === 0) return { ok: false, error: 'No step files found' }
+
+  // Derive a safe tutorial id from the folder name
+  const folderId = path.basename(srcDir).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+
+  // Build YAML frontmatter
+  const stepsYaml = stepFiles.map((s) => `  - file: ${s.file}\n    title: "${s.title.replace(/"/g, "'")}"`).join('\n')
+  const indexMd = `---
+id: ${folderId}
+title: "${title.replace(/"/g, "'")}"
+description: >
+  ${description.replace(/\n/g, '\n  ')}
+difficulty: beginner
+time: 30
+section: "Imported"
+tags: [imported, killercoda]
+
+steps:
+${stepsYaml}
+---
+
+${description}
+
+> _Imported from KillerCoda format._
+`
+
+  // Copy files to destDir
+  try { fs.mkdirSync(destDir, { recursive: true }) } catch (e) {
+    return { ok: false, error: `Cannot create tutorial dir: ${e.message}` }
+  }
+
+  fs.writeFileSync(path.join(destDir, 'index.md'), indexMd, 'utf8')
+
+  // Copy all .md files, converting {{execute}} → fenced run blocks
+  for (const entry of fs.readdirSync(srcDir)) {
+    if (!entry.endsWith('.md')) continue
+    const src = fs.readFileSync(path.join(srcDir, entry), 'utf8')
+    const converted = convertKillercodaMarkdown(src)
+    fs.writeFileSync(path.join(destDir, entry), converted, 'utf8')
+  }
+
+  // Copy any other non-.json, non-.git, non-.sh files (assets etc.)
+  for (const entry of fs.readdirSync(srcDir)) {
+    if (entry.endsWith('.md') || entry.endsWith('.json') || entry.endsWith('.sh') || entry === '.git') continue
+    const srcPath = path.join(srcDir, entry)
+    const dstPath = path.join(destDir, entry)
+    try {
+      if (fs.statSync(srcPath).isFile()) fs.copyFileSync(srcPath, dstPath)
+    } catch {}
+  }
+
+  return { ok: true, folderId, title, stepCount: stepFiles.length }
+}
+
+// Convert KillerCoda Markdown syntax to SC101 format:
+//   `command`{{execute}}  →  ```bash run\ncommand\n```
+//   `command`{{copy}}     →  ```bash\ncommand\n```
+function convertKillercodaMarkdown(src) {
+  // Inline backtick with {{execute}} — most common pattern
+  let out = src.replace(/`([^`]+)`\{\{execute\}\}/g, (_, cmd) => `\`\`\`bash run\n${cmd}\n\`\`\``)
+  // Inline backtick with {{copy}}
+  out = out.replace(/`([^`]+)`\{\{copy\}\}/g, (_, cmd) => `\`\`\`bash\n${cmd}\n\`\`\``)
+  // Fenced block with {{execute}} on same or next line
+  out = out.replace(/```(\w*)\s*\{\{execute\}\}/g, '```$1 run')
+  out = out.replace(/```(\w*)\s*\n\{\{execute\}\}/g, '```$1 run\n')
+  // Strip remaining {{...}} markers
+  out = out.replace(/\{\{[^}]+\}\}/g, '')
+  return out
+}
+
+// Detect whether a cloned repo is KillerCoda format:
+// A "multi-tutorial repo" has subdirectories each with index.json.
+// A single-tutorial repo has index.json at the root.
+// Returns: { type: 'sc101'|'killercoda-single'|'killercoda-multi'|'unknown', subDirs }
+function detectRepoFormat(repoDir) {
+  const hasIndexMd   = fs.existsSync(path.join(repoDir, 'index.md'))
+  const hasIndexJson = fs.existsSync(path.join(repoDir, 'index.json'))
+
+  if (hasIndexMd) return { type: 'sc101', subDirs: [] }
+  if (hasIndexJson) return { type: 'killercoda-single', subDirs: [] }
+
+  // Check for multi-tutorial repo: subdirs that each contain index.json
+  const subDirs = fs.readdirSync(repoDir, { withFileTypes: true })
+    .filter((d) => d.isDirectory() && !d.name.startsWith('.'))
+    .filter((d) => fs.existsSync(path.join(repoDir, d.name, 'index.json')))
+    .map((d) => d.name)
+
+  if (subDirs.length > 0) return { type: 'killercoda-multi', subDirs }
+  return { type: 'unknown', subDirs: [] }
+}
+
+// ── Import a tutorial from a GitHub URL ──────────────────────────────────────
 app.post('/api/tutorials/import', (req, res) => {
   const { url, course } = req.body || {}
   if (!url || typeof url !== 'string') return res.status(400).json({ error: 'url is required' })
 
-  // Validate GitHub URL
   const ghMatch = url.trim().match(/^https?:\/\/github\.com\/([^/]+\/[^/]+?)(?:\.git)?\/?$/)
   if (!ghMatch) return res.status(400).json({ error: 'Only GitHub repository URLs are supported (https://github.com/owner/repo)' })
 
-  // Derive course folder name and tutorial folder name from the URL
-  const repoSlug   = ghMatch[1]                       // e.g. "owner/my-tutorial"
-  const repoName   = repoSlug.split('/')[1]            // e.g. "my-tutorial"
+  const repoSlug   = ghMatch[1]
+  const repoName   = repoSlug.split('/')[1]
   const courseName = (typeof course === 'string' && course.trim())
     ? course.trim().replace(/\s+/g, '_')
     : 'Imported_Tutorials'
 
-  const courseDir  = safeResolve(TUTORIALS_DIR, courseName)
+  const courseDir = safeResolve(TUTORIALS_DIR, courseName)
   if (!courseDir) return res.status(400).json({ error: 'Invalid course name' })
 
-  const tutorialDir = safeResolve(courseDir, repoName)
-  if (!tutorialDir) return res.status(400).json({ error: 'Invalid tutorial directory name derived from repo' })
-
-  // Prevent overwriting an existing tutorial
-  if (fs.existsSync(tutorialDir)) {
-    return res.status(409).json({ error: `Tutorial "${repoName}" already exists in course "${courseName}". Delete it first or choose a different course.` })
-  }
-
-  // Ensure the course directory exists
   try { fs.mkdirSync(courseDir, { recursive: true }) } catch (e) {
     return res.status(500).json({ error: `Failed to create course directory: ${e.message}` })
   }
 
-  // Clone the repo (shallow clone for speed)
+  // Clone to a temp directory first so we can inspect before committing
   const { spawnSync: sp } = require('child_process')
-  const cloneResult = sp('git', ['clone', '--depth', '1', '--', url.trim(), tutorialDir], {
-    encoding: 'utf8',
-    timeout: 60_000,
-  })
+  const tmpCloneDir = path.join(courseDir, `.tmp_import_${Date.now()}`)
 
+  const cloneResult = sp('git', ['clone', '--depth', '1', '--', url.trim(), tmpCloneDir], {
+    encoding: 'utf8', timeout: 60_000,
+  })
   if (cloneResult.error || cloneResult.status !== 0) {
+    try { fs.rmSync(tmpCloneDir, { recursive: true, force: true }) } catch {}
     const msg = (cloneResult.stderr || cloneResult.error?.message || 'git clone failed').trim()
-    try { fs.rmSync(tutorialDir, { recursive: true, force: true }) } catch {}
     return res.status(422).json({ error: `Clone failed: ${msg}` })
   }
+  try { fs.rmSync(path.join(tmpCloneDir, '.git'), { recursive: true, force: true }) } catch {}
 
-  // Remove the .git directory so it doesn't interfere with the host repo
-  try { fs.rmSync(path.join(tutorialDir, '.git'), { recursive: true, force: true }) } catch {}
+  // Detect format
+  const { type, subDirs } = detectRepoFormat(tmpCloneDir)
+  const imported = []
+  const allErrors = []
+  const allWarnings = []
 
-  // Validate tutorial structure
+  if (type === 'sc101') {
+    // Direct SC101 tutorial — validate and move into place
+    const tutorialDir = safeResolve(courseDir, repoName)
+    if (!tutorialDir) { allErrors.push('Invalid tutorial directory name'); }
+    else if (fs.existsSync(tutorialDir)) {
+      allErrors.push(`Tutorial "${repoName}" already exists in course "${courseName}". Delete it first.`)
+    } else {
+      const { errors, warnings } = validateSc101Tutorial(tmpCloneDir)
+      if (errors.length > 0) {
+        allErrors.push(...errors)
+      } else {
+        fs.renameSync(tmpCloneDir, tutorialDir)
+        const meta = loadTutorialMeta(courseName, repoName)
+        imported.push({ tutorial: repoName, uid: tutorialUid(courseName, repoName), meta })
+        allWarnings.push(...warnings)
+      }
+    }
+  } else if (type === 'killercoda-single') {
+    // Single KillerCoda tutorial at repo root
+    const tutorialDir = safeResolve(courseDir, repoName)
+    if (!tutorialDir) { allErrors.push('Invalid tutorial directory name') }
+    else if (fs.existsSync(tutorialDir)) {
+      allErrors.push(`Tutorial "${repoName}" already exists. Delete it first.`)
+    } else {
+      const result = convertKillercodaTutorial(tmpCloneDir, tutorialDir, courseName)
+      if (!result.ok) allErrors.push(result.error)
+      else {
+        const meta = loadTutorialMeta(courseName, repoName)
+        imported.push({ tutorial: repoName, uid: tutorialUid(courseName, repoName), meta })
+        allWarnings.push(`Converted from KillerCoda format (${result.stepCount} steps)`)
+      }
+    }
+  } else if (type === 'killercoda-multi') {
+    // Multi-tutorial KillerCoda repo: import each subdirectory as a separate tutorial
+    for (const subDir of subDirs) {
+      const tutorialDir = safeResolve(courseDir, subDir)
+      if (!tutorialDir) { allWarnings.push(`Skipped "${subDir}": invalid name`); continue }
+      if (fs.existsSync(tutorialDir)) {
+        allWarnings.push(`Skipped "${subDir}": already exists in course "${courseName}"`)
+        continue
+      }
+      const result = convertKillercodaTutorial(path.join(tmpCloneDir, subDir), tutorialDir, courseName)
+      if (!result.ok) {
+        allWarnings.push(`Skipped "${subDir}": ${result.error}`)
+      } else {
+        const meta = loadTutorialMeta(courseName, subDir)
+        imported.push({ tutorial: subDir, uid: tutorialUid(courseName, subDir), meta })
+        allWarnings.push(`"${subDir}" converted from KillerCoda format (${result.stepCount} steps)`)
+      }
+    }
+    if (imported.length === 0 && allErrors.length === 0) {
+      allErrors.push('No tutorials could be imported from this repository.')
+    }
+  } else {
+    allErrors.push('Could not detect tutorial format. Expected either SC101 (index.md) or KillerCoda (index.json) format.')
+  }
+
+  // Clean up temp clone
+  try { fs.rmSync(tmpCloneDir, { recursive: true, force: true }) } catch {}
+
+  if (allErrors.length > 0 && imported.length === 0) {
+    return res.status(422).json({ error: allErrors[0], errors: allErrors, warnings: allWarnings })
+  }
+
+  console.log(`[import] Imported ${imported.length} tutorial(s) from ${url} into course "${courseName}"`)
+  res.json({
+    ok: true,
+    format: type,
+    course: courseName,
+    imported,
+    warnings: allWarnings,
+    errors: allErrors.length > 0 ? allErrors : undefined,
+  })
+})
+
+function validateSc101Tutorial(dir) {
   const errors = []
   const warnings = []
-
-  const indexPath = path.join(tutorialDir, 'index.md')
+  const indexPath = path.join(dir, 'index.md')
   if (!fs.existsSync(indexPath)) {
     errors.push('Missing index.md — every tutorial must have an index.md with YAML frontmatter (id, title, description, steps).')
-  } else {
-    let meta = null
-    try {
-      const { data, content } = matter(fs.readFileSync(indexPath, 'utf8'))
-      meta = data
-
-      if (!data.id)          errors.push('index.md frontmatter is missing required field: id')
-      if (!data.title)       errors.push('index.md frontmatter is missing required field: title')
-      if (!data.description) warnings.push('index.md frontmatter is missing recommended field: description')
-      if (!Array.isArray(data.steps) || data.steps.length === 0) {
-        errors.push('index.md frontmatter must include a non-empty "steps" array')
-      } else {
-        for (const step of data.steps) {
-          if (!step.file) { errors.push(`Step entry missing "file" key: ${JSON.stringify(step)}`); continue }
-          const stepPath = path.join(tutorialDir, step.file)
-          if (!fs.existsSync(stepPath)) errors.push(`Step file referenced in index.md not found: ${step.file}`)
-        }
+    return { errors, warnings }
+  }
+  try {
+    const { data, content } = matter(fs.readFileSync(indexPath, 'utf8'))
+    if (!data.id)    errors.push('index.md frontmatter missing required field: id')
+    if (!data.title) errors.push('index.md frontmatter missing required field: title')
+    if (!data.description) warnings.push('index.md frontmatter missing recommended field: description')
+    if (!Array.isArray(data.steps) || data.steps.length === 0) {
+      errors.push('index.md frontmatter must include a non-empty "steps" array')
+    } else {
+      for (const step of data.steps) {
+        if (!step.file) { errors.push(`Step entry missing "file" key: ${JSON.stringify(step)}`); continue }
+        if (!fs.existsSync(path.join(dir, step.file))) errors.push(`Step file not found: ${step.file}`)
       }
-
-      if (!content.trim()) warnings.push('index.md has no body text (the tutorial description shown on the selector screen will be empty)')
-    } catch (e) {
-      errors.push(`Failed to parse index.md: ${e.message}`)
     }
+    if (!content.trim()) warnings.push('index.md has no body text')
+  } catch (e) {
+    errors.push(`Failed to parse index.md: ${e.message}`)
   }
-
-  if (errors.length > 0) {
-    // Remove cloned directory on validation failure so the user can fix and re-import
-    try { fs.rmSync(tutorialDir, { recursive: true, force: true }) } catch {}
-    return res.status(422).json({ error: 'Tutorial validation failed', errors, warnings })
-  }
-
-  // Load the tutorial meta to return in the response
-  const tutMeta = loadTutorialMeta(courseName, repoName)
-
-  console.log(`[import] Imported tutorial "${repoName}" into course "${courseName}" from ${url}`)
-  res.json({ ok: true, course: courseName, tutorial: repoName, uid: tutorialUid(courseName, repoName), meta: tutMeta, warnings })
-})
+  return { errors, warnings }
+}
 
 // List all available tutorials
 app.get('/api/tutorials', (_req, res) => {

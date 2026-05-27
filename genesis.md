@@ -693,6 +693,86 @@ Actually — `undefined && !undefined` is `false`, so it didn't early-return. Th
 
 > **Always update `genesis.md` after every change to the project**, no matter how small. Add a new Phase section describing: the instruction given, the implementation, any pitfalls encountered, and the commit SHA.
 
+
+---
+
+## Phase 31 — Course hierarchy
+
+**Goal**: Group tutorials into courses. Each course is a folder in `tutorials/`.
+
+**Changes**:
+1. **Folder structure**: `tutorials/<Course_Name>/<tutorial-id>/` (underscores replace spaces for shell safety; display converts `_` → spaces)
+   - Created `tutorials/SC101_Lab_Interface_playground/` containing all 7 existing tutorials
+   - Created `tutorials/SC101_Original_Labs/` with a placeholder tutorial
+2. **Backend** (`server.js`):
+   - `loadTutorialMeta(courseDir, tutorialId)` — takes course dir parameter
+   - `findTutorial(tutorialRef)` — searches all courses; accepts `courseId/folderId` UID or legacy `id`
+   - `listTutorials()` — scans nested structure, adds `course`/`courseId`/`uid` to every tutorial
+   - `courseDisplayName()` — converts folder name to display name (underscores → spaces)
+   - `tutorialUid()` — stable compound key `courseDir/tutorialDir`
+   - Resilient: try/catch at every directory scan level, skips invalid entries
+   - Courses and tutorials are sorted alphabetically for deterministic ordering
+3. **Frontend** (`TutorialSelector.jsx`):
+   - Groups by course first, then section within each course
+   - Courses are collapsed by default; the active course expands on back-navigation
+   - Course header with progress bar
+4. **CSS** (`index.css`): course styles, orange accent, collapsible chevron
+
+**Commits:** `2da458a`, `f7f6432`, `e21a888`, `d919d65`, `263a8eb`, `e8db60c`
+
+---
+
+## Phase 32 — Static review fixes and hardening
+
+**Goal**: Fix security issues, code inconsistencies, and potential bugs from static code analysis.
+
+**Changes**:
+1. **Stable tutorial identity**: `courseId`, `folderId`, `uid` on every tutorial; frontend keys all progress by `uid`
+2. **LXD command injection prevention**: all `lxc` calls use `spawnSync` argument arrays; export uses `execFile()`
+3. **Path traversal prevention**: `safeResolve()` checks paths stay inside their base directory
+4. **Session hardening**: atomic writes, `Object.hasOwn()` for null tutorialId, container name with session suffix
+5. **XSS hardening**: DOMPurify on tutorial HTML, `escapeAttr()` on run-button commands
+6. **Session enumeration fix**: login only fetches the locally-saved session ID (later reverted — see Phase 33)
+7. **Selector regressions fixed**: restored `expanded` state, `lastTutorialId` for correct course expansion on back
+
+**Commit:** `0b3f06d`
+
+---
+
+## Phase 33 — UX fixes and nav improvements
+
+1. **User initials in nav**: `SC` logo replaced with user's initials (first letter of each name word)
+2. **← Tutorials link moved** to right side of nav bar, before the gear icon
+3. **Session listing restored**: `GET /api/sessions` re-enabled (was disabled in Phase 32 as a security measure, but broke the resume screen for a lab tool with no authentication)
+4. **Session expiry**: containers auto-stopped after 2h inactivity; `runSessionExpiry()` runs every 15 min via `setInterval`; `IDLE_STOP_DELAY` bumped from 60s to 5min
+
+**Commits:** `0a5df7d`, `b57e424`, `d291ac5`
+
+---
+
+## Phase 34 — Host prerequisites UI + GitHub tutorial import
+
+1. **Host prerequisites check** (`GET /api/setup/check`): checks lxd, lxd-init, snapcraft, node, npm; returns version + install command for missing tools
+2. **Prerequisites panel** in gear menu: collapsible, green/red per check, copy button, docs link, re-check button
+3. **GitHub tutorial import** (`POST /api/tutorials/import`):
+   - Shallow-clones repo to a temp directory
+   - **Auto-detects format**:
+     - `index.md` present → SC101 native format: validate and install as-is
+     - `index.json` at root → KillerCoda single-tutorial: convert to SC101 format
+     - Subdirs each with `index.json` → KillerCoda multi-tutorial repo: convert and import each sub-tutorial
+   - **KillerCoda conversion** (`convertKillercodaTutorial`):
+     - Reads `index.json` for title, description, step list
+     - Generates `index.md` with YAML frontmatter
+     - Converts `{{execute}}` / `{{copy}}` inline syntax → SC101 fenced run blocks
+     - Strips remaining `{{...}}` markers
+   - **Validation** (`validateSc101Tutorial`): required fields (`id`, `title`, `steps`), step files exist
+   - On failure: cleans up cloned dir, returns structured error list
+   - Optional course name parameter (defaults to `Imported_Tutorials`)
+4. **Import UI** in gear menu: URL + course name inputs, inline success/error/warnings display
+5. **Light mode fix**: setup and import CSS now uses `--sc101-fg` / `--sc101-fg-muted` / `--sc101-bg-alt` (previously used undefined variables causing white-on-white text)
+
+**Commits:** `e7537f2`, `507a31f`, `0597f9e`, `360c358` + this phase
+
 ---
 
 ## Current project structure
@@ -701,31 +781,37 @@ Actually — `undefined && !undefined` is `false`, so it didn't early-return. Th
 sc101-lab-interface/
 ├── backend/
 │   ├── data/sessions.json        # Runtime session store
-│   ├── lxd.js                    # Container lifecycle + destroyContainer
+│   ├── lxd.js                    # Container lifecycle (spawnSync arg-array)
 │   ├── server.js                 # Express REST API + WebSocket PTY bridge
-│   └── sessions.js               # Session CRUD (list/get/create/update/remove)
+│   └── sessions.js               # Session CRUD (atomic writes, Object.hasOwn)
 ├── frontend/
-│   ├── index.html                # Vanilla CSS CDN link, Ubuntu fonts
+│   ├── index.html
 │   └── src/
-│       ├── App.jsx               # Screen flow: checking → login → selector → tutorial
+│       ├── App.jsx               # Screen flow: login → selector → tutorial; lastTutorialId
 │       ├── main.jsx              # Entry point (no StrictMode)
 │       ├── index.css             # --sc101-* custom properties, all custom styles
 │       ├── components/
-│       │   ├── SettingsPanel/    # Gear popover: username, progress, download, theme
+│       │   ├── SettingsPanel/    # Gear popover: user info, progress, export, theme, import, prerequisites
 │       │   ├── TerminalPane/     # xterm.js + WebSocket + node-pty bridge
-│       │   ├── ThemeToggle/      # ThemeContext + ThemeToggle (light/dark/auto)
-│       │   └── TutorialPane/     # Markdown renderer, Prism.js, step navigation, run buttons
+│       │   ├── ThemeToggle/      # ThemeContext (light/dark/auto)
+│       │   └── TutorialPane/     # Markdown + DOMPurify, Prism.js, step nav, run buttons
 │       └── screens/
-│           ├── LoginScreen.jsx   # Tabbed new/resume + delete account
-│           └── TutorialSelector.jsx  # Card grid with sections, progress, dependencies
+│           ├── LoginScreen.jsx   # New/resume/delete session; shows all sessions
+│           └── TutorialSelector.jsx  # Courses → sections → tree layout, progress, deps
 ├── tutorials/
-│   ├── INSTRUCTIONS.md           # Authoring rules for new tutorials
-│   ├── README.md                 # Contributor guide
-│   ├── hello-snap/               # Tutorial 1: Hello Snap (6 steps)
-│   └── snap-confinement/         # Tutorial 2: Confinement (4 steps, requires hello-snap)
-├── TODO.md
+│   ├── INSTRUCTIONS.md
+│   ├── SC101_Lab_Interface_playground/
+│   │   ├── hello-snap/           # Tutorial 1: Hello Snap C app (6 steps)
+│   │   ├── snap-confinement/     # Tutorial 2: Confinement (4 steps)
+│   │   ├── uc-basic-image/       # Skeleton: Basic UC image
+│   │   ├── uc-user-assertion/    # Skeleton: User assertion
+│   │   ├── uc-customize-image/   # Skeleton: Customize image
+│   │   ├── snap-store-upload/    # Skeleton: Snap Store upload
+│   │   └── uc-gadget-snap/       # Skeleton: Gadget snap
+│   └── SC101_Original_Labs/
+│       └── fake/                 # Placeholder tutorial
 ├── package.json
-└── genesis.md                    # This file
+└── genesis.md                    # This file (TODO.md merged in below)
 ```
 
 ---
@@ -743,77 +829,45 @@ sc101-lab-interface/
 | Empty tutorial selector | Exception in one tutorial crashes whole list | Wrap `loadTutorialMeta` in try/catch |
 | `lxc export` requires stopped container | Missing `--instance-only` flag | Always use `lxc export --instance-only` |
 | Vanilla CSS not in npm package | Package ships SCSS only, no pre-built CSS | Load from Ubuntu assets CDN |
-| File modification visibility | Overwriting files loses diff context | Use diff blocks + `sed` (INSTRUCTIONS.md Rule 3) |
-| Step navigation stays at bottom | Overflow container scroll not reset on re-render | `contentRef.current?.scrollTo({ top: 0, behavior: 'instant' })` at start of step-load effect |
-| "Next tutorial" shows wrong step + crash | React batches state; new `meta` arrives before `stepIndex` resets | Reset all state (`stepIndex`, `meta`, `html`, etc.) in the same `tutorialId` `useEffect` |
-| Makefile recipe lines become spaces | `marked` strips tab characters from code blocks before "run" sends them to terminal | Replace heredoc with `printf '...\t...'` — `\t` escapes survive the markdown→terminal pipeline |
-
----
-
-## Phase 31 — Course hierarchy
-
-**Goal**: Group tutorials into courses. Each course is a folder in `tutorials/`.
-
-**Changes**:
-1. **Folder structure**: `tutorials/<Course Name>/<tutorial-id>/`
-   - Created `tutorials/SC101 Lab Interface playground/` containing all 7 existing tutorials
-   - Created `tutorials/SC101 Original Labs/` (empty, for future content)
-2. **Backend** (`server.js`):
-   - `loadTutorialMeta(courseDir, tutorialId)` — now takes course dir parameter
-   - `findTutorial(tutorialId)` — searches all courses, returns `{ courseDir, meta }`
-   - `listTutorials()` — scans nested structure, adds `course` field to each tutorial
-   - All API routes updated to use `findTutorial()`
-   - Resilient: try/catch at every directory scan level, skips invalid entries
-3. **Frontend** (`TutorialSelector.jsx`):
-   - Groups by course first, then section within each course
-   - Course header with title and progress bar
-   - Updated section styling (now nested under course)
-4. **CSS** (`index.css`):
-   - `.sc101-course`, `.sc101-course-header`, `.sc101-course-title` styles
-   - Orange accent for course titles
-   - Section titles are now h3 (demoted from h2)
-
----
-
-## Phase 32 — Static review fixes and hardening
-
-**Goal**: Fix the review findings around course identity, selector regressions, path safety, Markdown rendering, and shell execution.
-
-**Changes**:
-1. **Stable tutorial identity**:
-   - Backend now returns `courseId`, `folderId`, and `uid` (`courseId/tutorial-folder`) for every tutorial.
-   - Frontend uses `uid` for session progress, selection, validation, prerequisites, and "next tutorial" lookup.
-   - Legacy tutorial IDs still work as a fallback for existing progress data.
-2. **Selector regressions**:
-   - Restored broken-tutorial expansion state.
-   - Fixed "return to selector" so the course containing the last active tutorial unfolds while other courses stay folded.
-   - Course collapse state is keyed by stable `courseId`, not display text.
-3. **Tutorial file safety**:
-   - Step paths are resolved with a safe path check and cannot escape their tutorial folder.
-   - Step read/parse errors return structured JSON errors.
-4. **Markdown/XSS hardening**:
-   - Tutorial HTML is sanitized with DOMPurify before `dangerouslySetInnerHTML`.
-   - Run-button command attributes now escape `&`, `<`, `>`, quotes, and newlines.
-5. **Backend process/session hardening**:
-   - LXD calls now use argument-array process execution instead of shell-interpolated command strings.
-   - LXC export uses `execFile()` and validates container names.
-   - Public session listing no longer returns all sessions.
-   - Login resume now fetches only the locally saved session ID instead of enumerating all sessions.
-   - Session writes are atomic temp-file-and-rename writes.
-   - New containers include a session ID suffix to avoid username collisions.
-   - Clearing `tutorialId` with `null` now works and no longer writes `progress.null`.
+| Step navigation stays at bottom | Overflow container scroll not reset on re-render | `contentRef.current?.scrollTo({ top: 0, behavior: 'instant' })` |
+| "Next tutorial" shows wrong step + crash | React batches state | Reset all state in same `tutorialId` `useEffect` |
+| Makefile recipe lines become spaces | `marked` strips tabs from code blocks | Use `printf '...\t...'` — `\t` survives the markdown→terminal pipeline |
+| White-on-white text in light mode | CSS used undefined `--sc101-text-muted` / `--sc101-hover` vars | Use `--sc101-fg`, `--sc101-fg-muted`, `--sc101-bg-alt` |
+| Sessions "lost" after server restart | `GET /api/sessions` disabled for security (bad for lab tool) | Restored; lab tool has no auth, enumeration is acceptable |
 
 ---
 
 ## TODO (open items)
 
-- [ ] SSO integration (replace username-only login)
-- [ ] Pre-install script for host prerequisites
-- [ ] Ubuntu Core container launch + snap install on it
-- [ ] Live container status indicator in terminal header
-- [ ] Rate-limit session creation
-- [ ] HTTPS / reverse proxy
-- [ ] Session expiry + auto-cleanup
-- [ ] Mobile responsive layout
-- [ ] **Award page** — certificate download when all tutorials are completed
-- [ ] **Download course from GitHub** — UI + backend to fetch a course folder from a GitHub repo URL and install it into `tutorials/` without restart
+### Authentication
+- [ ] **SSO integration** — replace username-only login with OIDC/SAML (e.g. Keycloak or Ubuntu One); map `session.username` to SSO subject claim
+
+### Tutorial content — to write
+- [ ] **`uc-basic-image`** — Create a basic Ubuntu Core image with `ubuntu-image` and a model assertion
+- [ ] **`uc-user-assertion`** *(requires: uc-basic-image)* — Add a user assertion to enable SSH login via Ubuntu SSO
+- [ ] **`uc-customize-image`** *(requires: uc-basic-image)* — Pre-install snaps at build time via model assertion
+- [ ] **`snap-store-upload`** — Register, upload, and release a snap on the Snap Store
+- [ ] Complete all 6 steps of `hello-snap` tutorial
+
+### Infrastructure
+- [x] **Host prerequisites UI** — show required tools with install commands in the gear menu *(Phase 34)*
+- [ ] **Ubuntu Core container** — import UC24 image into LXD; expose to backend for snap test step
+- [ ] **Provision script** — `scripts/setup-host.sh` that automates lxd init, snapcraft install, image pull
+
+### Backend
+- [x] **Session expiry** — auto-destroy containers + remove sessions after 2h inactivity *(Phase 33)*
+- [x] **GitHub tutorial import** — detect SC101 and KillerCoda formats, convert, validate, install *(Phase 34)*
+- [ ] **Rate-limit session creation** — prevent container sprawl
+- [ ] **Delete imported tutorial** — `DELETE /api/tutorials/:uid` endpoint to remove a tutorial folder
+
+### Frontend
+- [x] **Tutorial selector** — card grid, sections, progress, dependency tree *(Phase 11+)*
+- [x] **Collapsible courses** — folded by default, expand active course on back-nav *(Phase 31)*
+- [ ] **Live container status** — show starting/running/stopped in terminal pane header
+- [ ] **Mobile layout** — responsive split-pane or tabbed view for narrow screens
+- [ ] **Award page** — certificate/PDF download when user completes all tutorials in a course
+
+### Security / Production
+- [ ] **Resource limits** — enforce LXD CPU/RAM/disk quotas per container
+- [ ] **HTTPS** — reverse proxy with nginx or Caddy + TLS
+
