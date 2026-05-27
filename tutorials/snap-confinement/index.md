@@ -29,7 +29,15 @@ steps:
   - file: step3.md
     title: "Package as a devmode snap"
   - file: step4.md
-    title: "Switch to strict confinement"
+    title: "Enable strict confinement"
+  - file: step5.md
+    title: "Observe the network denial"
+  - file: step6.md
+    title: "Grant network access"
+  - file: step7.md
+    title: "Grant home directory access"
+  - file: step8.md
+    title: "Connect the interface and verify"
 ---
 
 ## About this tutorial
