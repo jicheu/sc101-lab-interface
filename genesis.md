@@ -676,6 +676,19 @@ CSS additions: `.sc101-tut-group`, `.sc101-tutorial-grid--root` (capped width), 
 
 ---
 
+## Phase 30 — Bug fix: Start/Restart buttons not clickable after tree layout refactor
+
+**Root cause:**  
+During the tree layout refactor (Phase 29), the line `const v = validation[tut.id]` was accidentally dropped from `handleSelect`. The check `if (v && !v.valid) return` then evaluated `v` as `undefined`, which is falsy — so it didn't return, but the real damage was that without the declaration the variable referenced the outer scope `v` which was `undefined`, causing every click to silently no-op before reaching the `fetch`/`onSelect`.
+
+Actually — `undefined && !undefined` is `false`, so it didn't early-return. The real symptom was that `v` being `undefined` caused a silent error elsewhere. Either way, restoring `const v = validation[tut.id]` fixes it.
+
+**Fix:** Restored the missing `const v = validation[tut.id]` declaration at the top of `handleSelect`.
+
+**Commit:** `f213387`
+
+---
+
 ## Standing instruction (Phase 17+)
 
 > **Always update `genesis.md` after every change to the project**, no matter how small. Add a new Phase section describing: the instruction given, the implementation, any pitfalls encountered, and the commit SHA.
