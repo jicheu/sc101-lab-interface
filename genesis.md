@@ -483,6 +483,32 @@ When snap name == app name, snapcraft exposes the command as just `<snap-name>` 
 
 ---
 
+## Phase 22 — Fix: switch network API to numbersapi.com (plain HTTP)
+
+**Instruction:**  
+`api.quotable.io` fails with SSL certificate error in the container environment.
+
+**Root cause:**  
+Both previous APIs (`zenquotes.io`, `api.quotable.io`) use HTTPS. The LXD container may lack CA certificates or have network filtering that breaks TLS handshakes. Since the network call is not the teaching focus (confinement is), the simplest fix wins.
+
+**Fix:**  
+Switch to `http://numbersapi.com/random/trivia`:
+- Plain HTTP — no SSL, no cert issues
+- Plain text response — no JSON parser needed (removed `extract()` function)
+- Very reliable, free, no auth required
+- C source simplified by ~25 lines
+
+**Files changed:**
+- `tutorials/snap-confinement/step2.md` — rewritten C source: new URL, removed JSON extraction
+- `tutorials/snap-confinement/step3.md` — snap description text
+- `tutorials/snap-confinement/step4.md` — expected error message hostname
+
+**General rule for future tutorials:** For any tutorial that requires a network call as a prop (not the focus), use `http://numbersapi.com/random/trivia` — plain HTTP, plain text, reliable in container environments.
+
+**Commit:** `f18f213` — `fix: switch to numbersapi.com (plain HTTP, plain text, no SSL)`
+
+---
+
 ## Standing instruction (Phase 17+)
 
 > **Always update `genesis.md` after every change to the project**, no matter how small. Add a new Phase section describing: the instruction given, the implementation, any pitfalls encountered, and the commit SHA.
