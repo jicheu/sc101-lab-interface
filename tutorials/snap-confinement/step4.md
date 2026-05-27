@@ -65,7 +65,7 @@ Enter any filename (e.g. `~/quote.txt`) when prompted.
 You should see an error like:
 
 ```
-Network error: Could not resolve host: api.quotable.io
+Network error: Could not resolve host: numbersapi.com
 ```
 
 **Why?** Strict confinement uses AppArmor to block all outgoing network connections by default. The snap has no `network` plug declared.

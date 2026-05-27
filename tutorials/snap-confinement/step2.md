@@ -58,23 +58,6 @@ static size_t write_cb(void *ptr, size_t size, size_t nmemb, void *userp)
     return realsize;
 }
 
-/* Extract a string value from the simple JSON ZenQuotes returns:
-   [{"q":"...","a":"...","h":"..."}]  */
-static void extract(const char *json, const char *key, char *out, size_t outlen)
-{
-    char needle[64];
-    snprintf(needle, sizeof(needle), "\"%s\":\"", key);
-    const char *p = strstr(json, needle);
-    if (!p) { strncpy(out, "(unknown)", outlen); return; }
-    p += strlen(needle);
-    size_t i = 0;
-    while (*p && *p != '"' && i < outlen - 1) {
-        if (*p == '\\' && *(p + 1)) p++;   /* skip escape char */
-        out[i++] = *p++;
-    }
-    out[i] = '\0';
-}
-
 int main(void)
 {
     char filename[512];
@@ -84,12 +67,12 @@ int main(void)
     filename[strcspn(filename, "\n")] = '\0';
     if (filename[0] == '\0') { fprintf(stderr, "No filename given.\n"); return 1; }
 
-    /* Fetch quote */
+    /* Fetch a random trivia fact (plain HTTP, plain text response) */
     CURL *curl = curl_easy_init();
     if (!curl) { fprintf(stderr, "curl_easy_init failed\n"); return 1; }
 
     struct Buffer buf = {0};
-    curl_easy_setopt(curl, CURLOPT_URL, "https://api.quotable.io/random");
+    curl_easy_setopt(curl, CURLOPT_URL, "http://numbersapi.com/random/trivia");
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_cb);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &buf);
     curl_easy_setopt(curl, CURLOPT_USERAGENT, "inspire-snap/1.0");
@@ -105,18 +88,14 @@ int main(void)
         return 1;
     }
 
-    char quote[1024] = {0}, author[256] = {0};
-    extract(buf.data, "content", quote, sizeof(quote));
-    extract(buf.data, "author", author, sizeof(author));
-    free(buf.data);
-
     /* Write to file */
     FILE *f = fopen(filename, "w");
     if (!f) { perror("Cannot open file"); return 1; }
-    fprintf(f, "\"%s\"\n    — %s\n", quote, author);
+    fprintf(f, "%s\n", buf.data ? buf.data : "(no content)");
     fclose(f);
 
-    printf("\nSaved to %s:\n\n\"%s\"\n    — %s\n\n", filename, quote, author);
+    printf("\nSaved to %s:\n\n%s\n\n", filename, buf.data ? buf.data : "(no content)");
+    free(buf.data);
     return 0;
 }
 EOF
