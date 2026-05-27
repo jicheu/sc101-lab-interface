@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import SettingsPanel from '../components/SettingsPanel/SettingsPanel.jsx'
-import SetupGuide from '../components/SetupGuide/SetupGuide.jsx'
 
 const DIFFICULTY_COLOUR = {
   beginner:     '#0e8420',
@@ -268,7 +267,6 @@ export default function TutorialSelector({ session, onSelect, onLogout, activeTu
           SC101 Lab Interface
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <SetupGuide />
           <SettingsPanel session={session} />
           <button className="sc101-nav-text-btn" onClick={onLogout}>⎋ Exit</button>
         </div>

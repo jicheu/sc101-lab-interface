@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import SettingsPanel from '../components/SettingsPanel/SettingsPanel.jsx'
-import SetupGuide from '../components/SetupGuide/SetupGuide.jsx'
 
 export default function LoginScreen({ onSession }) {
   const [tab, setTab] = useState('new')
@@ -76,7 +75,6 @@ export default function LoginScreen({ onSession }) {
           SC101 Lab Interface
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <SetupGuide />
           <SettingsPanel />
         </div>
       </nav>

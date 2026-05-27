@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
 import { useTheme } from '../ThemeToggle/ThemeContext.jsx'
-
 const THEME_OPTIONS = [
   { value: 'light', icon: '☀', label: 'Light' },
   { value: 'auto',  icon: '⬤', label: 'Auto'  },
@@ -36,6 +35,28 @@ export default function SettingsPanel({ session, tutorialProgress }) {
 
   const [exportError, setExportError] = useState(null)
   const [exportStatus, setExportStatus] = useState(null)
+
+  // Host prerequisites check
+  const [setupChecks, setSetupChecks] = useState(null)
+  const [setupLoading, setSetupLoading] = useState(false)
+  const [setupCopied, setSetupCopied] = useState(null)
+  const [setupOpen, setSetupOpen] = useState(false)
+
+  const loadSetup = () => {
+    setSetupLoading(true)
+    fetch('/api/setup/check')
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (d) setSetupChecks(d.checks) })
+      .catch(() => {})
+      .finally(() => setSetupLoading(false))
+  }
+
+  const copySetupCmd = (id, cmd) => {
+    navigator.clipboard?.writeText(cmd).then(() => {
+      setSetupCopied(id)
+      setTimeout(() => setSetupCopied(null), 2000)
+    })
+  }
 
   function formatBytes(bytes) {
     if (bytes < 1024) return `${bytes} B`
@@ -183,6 +204,53 @@ export default function SettingsPanel({ session, tutorialProgress }) {
                 </button>
               ))}
             </div>
+          </div>
+
+          <div className="sc101-settings-divider" />
+
+          {/* Host prerequisites */}
+          <div className="sc101-settings-section">
+            <button
+              className="sc101-download-btn"
+              onClick={() => { setSetupOpen((v) => !v); if (!setupChecks) loadSetup() }}
+            >
+              {setupChecks && setupChecks.some((c) => !c.ok) ? '⚠ ' : '🔧 '}
+              Host prerequisites
+              <span style={{ marginLeft: 'auto', fontSize: '0.75rem' }}>{setupOpen ? '▲' : '▼'}</span>
+            </button>
+
+            {setupOpen && (
+              <div style={{ marginTop: '0.5rem' }}>
+                {setupLoading && <div className="sc101-settings-meta">Checking…</div>}
+                {!setupLoading && setupChecks && (
+                  <ul className="sc101-setup-list">
+                    {setupChecks.map((c) => (
+                      <li key={c.id} className={`sc101-setup-item${c.ok ? ' is-ok' : ' is-missing'}`}>
+                        <span className="sc101-setup-status">{c.ok ? '✓' : '✗'}</span>
+                        <div className="sc101-setup-details">
+                          <div className="sc101-setup-label">
+                            {c.label}
+                            {c.version && <span className="sc101-setup-version">{c.version}</span>}
+                          </div>
+                          {!c.ok && c.fix && (
+                            <div className="sc101-setup-fix">
+                              <code className="sc101-setup-cmd">{c.fix}</code>
+                              <button className="sc101-setup-copy" onClick={() => copySetupCmd(c.id, c.fix)} title="Copy">
+                                {setupCopied === c.id ? '✓' : '⎘'}
+                              </button>
+                              {c.docs && <a href={c.docs} target="_blank" rel="noopener noreferrer" className="sc101-setup-docs">docs ↗</a>}
+                            </div>
+                          )}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <button className="sc101-download-btn" style={{ marginTop: '0.25rem' }} onClick={loadSetup} disabled={setupLoading}>
+                  {setupLoading ? 'Checking…' : '↺ Re-check'}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
