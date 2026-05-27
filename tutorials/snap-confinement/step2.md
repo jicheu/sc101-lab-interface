@@ -2,7 +2,11 @@
 title: "Build the inspire app"
 ---
 
-## Install dependencies
+## Objective
+
+Install the required C build dependencies, write the `inspire` C source file and Makefile, then compile and test the application natively before packaging it as a snap.
+
+## Install required tools
 
 The app uses **libcurl** to make HTTPS requests to the ZenQuotes API.
 
@@ -10,13 +14,21 @@ The app uses **libcurl** to make HTTPS requests to the ZenQuotes API.
 apt-get update -y && apt-get install -y build-essential libcurl4-openssl-dev
 ```
 
-## Create the project
+Verify the library is available:
+
+```bash run
+dpkg -l libcurl4-openssl-dev | grep '^ii'
+```
+
+## Instructions
+
+### Create the project
 
 ```bash run
 mkdir -p ~/inspire/src && cd ~/inspire
 ```
 
-## Write the C source
+### Write the C source
 
 The program fetches a quote, parses the JSON response, and writes the result to a file.
 
@@ -110,7 +122,7 @@ int main(void)
 EOF
 ```
 
-## Write the Makefile
+### Write the Makefile
 
 ```bash run
 cat > ~/inspire/src/Makefile << 'EOF'
@@ -126,7 +138,7 @@ clean:
 EOF
 ```
 
-## Compile and test
+### Compile and test
 
 ```bash run
 cd ~/inspire/src && make
@@ -136,13 +148,21 @@ cd ~/inspire/src && make
 ~/inspire/src/inspire
 ```
 
-When prompted, enter a filename such as `/tmp/quote.txt`.  
+When prompted, enter a filename such as `~/quote-native.txt`.  
 The app will fetch a live quote and write it to the file.
 
 ```bash run
-cat /tmp/quote.txt
+cat ~/quote-native.txt
 ```
 
 > If you see a quote and an author name, the app is working correctly.
 
-Click **Next →** to package it as a snap.
+## What we learned
+
+- `libcurl4-openssl-dev` provides both the headers (for compilation) and the shared library (for linking) needed to make HTTPS requests in C.
+- The `inspire` binary works natively: it can reach the network and write to the home directory without any restrictions.
+- This native baseline confirms the application logic is correct before we add snap packaging.
+
+## What's next
+
+In the next step you will package `inspire` as a snap using `devmode` confinement to verify the snap works before adding any restrictions.

@@ -2,9 +2,17 @@
 title: "Install & test"
 ---
 
-The snap file is built. Now install it and verify it runs correctly under strict confinement.
+## Objective
 
-## Install the snap locally (sideloading)
+Install the snap locally and verify it runs correctly under strict confinement, then inspect its interface connections.
+
+## Prerequisites
+
+- `~/hello-snap/hello-snap_1.0_amd64.snap` built (completed in the previous step).
+
+## Instructions
+
+### Install the snap locally (sideloading)
 
 Because this snap has not been published to the Snap Store, install it with the `--dangerous` flag to bypass store signature verification:
 
@@ -12,7 +20,7 @@ Because this snap has not been published to the Snap Store, install it with the 
 snap install --dangerous ~/hello-snap/hello-snap_1.0_amd64.snap
 ```
 
-## Run the snap
+### Run the snap
 
 ```bash run
 hello-snap.hello
@@ -24,37 +32,30 @@ You should see:
 Hello from a confined snap!
 ```
 
-## Confirm confinement is active
+### Confirm confinement is active
+
+> 📖 **Concept — Snap Interfaces**  
+> Interfaces are the mechanism through which a strictly confined snap requests access to system resources (network, files, hardware, etc.). A snap declares the interfaces it needs; the system connects them at install time or on demand.  
+> Official reference: https://snapcraft.io/docs/interfaces
 
 ```bash run
 snap connections hello-snap
 ```
 
-The output lists the snap's interfaces. Since `hello-snap` requests no special interfaces, it runs with the minimal sandbox — it cannot access your network, filesystem, or other resources.
+The output lists the snap's interface connections. Since `hello-snap` requests no special interfaces, it runs with the minimal sandbox — it cannot access your network, filesystem, or other resources.
 
-## Check the snap info
+### Check the snap info
 
 ```bash run
 snap info hello-snap
 ```
 
-## What's next — Ubuntu Core
+## What we learned
 
-In the next phase of this lab you will:
+- `snap install --dangerous` installs a locally built snap that has not been signed by the store.
+- A strictly confined snap with no declared interfaces can only write to stdout — no network, no filesystem outside its own data directory.
+- `snap connections` shows which interfaces a snap has connected.
 
-1. Launch an **Ubuntu Core 24** container with LXD
-2. Transfer the `.snap` file to it
-3. Install and run it on Ubuntu Core — a fully immutable, snap-only OS
+## What's next
 
-Ubuntu Core uses the same snap runtime, so a snap that works here will work there too.
-
----
-
-🎉 **Congratulations!** You have successfully:
-
-- Written a C application
-- Defined a snap recipe with strict confinement
-- Built the snap with Snapcraft
-- Installed and ran it on Ubuntu 24.04
-
-You are now ready to deploy to Ubuntu Core!
+Continue to the **Snap Confinement** tutorial, where you will build a snap that requires network and home directory access, deliberately break it under strict confinement, and fix it one interface at a time.
