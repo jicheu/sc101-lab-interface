@@ -7,7 +7,7 @@ const path = require('path')
 const fs = require('fs')
 const pty = require('node-pty')
 const { execFile } = require('child_process')
-const { ensureContainerForUser, stopAllContainers, destroyContainer, onConnect, onDisconnect } = require('./lxd')
+const { ensureContainerForUser, stopAllContainers, destroyContainer, onConnect, onDisconnect, SESSION_EXPIRY_MS } = require('./lxd')
 const sessions = require('./sessions')
 
 const matter = require('gray-matter')
@@ -374,6 +374,25 @@ wss.on('connection', async (ws, req) => {
 
 console.log('[lxd] Stopping all sc101 containers on startup…')
 stopAllContainers()
+
+// Periodic session expiry: every 15 minutes, destroy containers and remove
+// sessions that have been inactive for longer than SESSION_EXPIRY_MS (2 hours).
+function runSessionExpiry() {
+  const now = Date.now()
+  const expired = sessions.list().filter((s) => {
+    const idle = now - new Date(s.lastActiveAt).getTime()
+    return idle > SESSION_EXPIRY_MS
+  })
+  for (const s of expired) {
+    console.log(`[expiry] Session ${s.id} (${s.username}) inactive >2h — cleaning up…`)
+    try { destroyContainer(s.containerName) } catch (e) { console.error(`[expiry] Container destroy failed: ${e.message}`) }
+    sessions.remove(s.id)
+    console.log(`[expiry] Session ${s.id} removed.`)
+  }
+}
+
+const EXPIRY_CHECK_INTERVAL = 15 * 60_000  // every 15 minutes
+setInterval(runSessionExpiry, EXPIRY_CHECK_INTERVAL).unref()
 
 server.listen(PORT, () => {
   console.log(`[server] Backend listening on http://localhost:${PORT}`)

@@ -3,7 +3,10 @@
 const { spawnSync } = require('child_process')
 
 // Grace period before stopping an idle container (ms)
-const IDLE_STOP_DELAY = 60_000
+const IDLE_STOP_DELAY = 5 * 60_000   // 5 minutes
+
+// Sessions inactive longer than this are expired and their containers destroyed
+const SESSION_EXPIRY_MS = 2 * 60 * 60_000  // 2 hours
 
 // Track active WebSocket connections per container: containerName → count
 const activeConnections = new Map()
@@ -108,4 +111,4 @@ function onDisconnect(containerName) {
   }
 }
 
-module.exports = { ensureContainerForUser, stopAllContainers, destroyContainer, onConnect, onDisconnect }
+module.exports = { ensureContainerForUser, stopAllContainers, destroyContainer, onConnect, onDisconnect, SESSION_EXPIRY_MS }
