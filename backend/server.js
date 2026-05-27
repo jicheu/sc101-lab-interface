@@ -10,8 +10,31 @@ const { exec } = require('child_process')
 const { ensureContainerForUser, stopAllContainers, onConnect, onDisconnect } = require('./lxd')
 const sessions = require('./sessions')
 
+const matter = require('gray-matter')
+
 const PORT = 3001
-const TUTORIALS_DIR = path.join(__dirname, 'tutorials')
+// Tutorials live in the top-level tutorials/ folder so contributors can
+// add new ones without touching the backend source.
+const TUTORIALS_DIR = path.join(__dirname, '..', 'tutorials')
+
+// Parse a tutorial's index.md and return { id, title, description,
+// difficulty, time, tags, environment, steps, body }
+function loadTutorialMeta(tutorialId) {
+  const indexPath = path.join(TUTORIALS_DIR, tutorialId, 'index.md')
+  if (!fs.existsSync(indexPath)) return null
+  const { data, content } = matter(fs.readFileSync(indexPath, 'utf8'))
+  return { ...data, id: data.id || tutorialId, body: content.trim() }
+}
+
+// List all tutorials that have a valid index.md
+function listTutorials() {
+  if (!fs.existsSync(TUTORIALS_DIR)) return []
+  return fs.readdirSync(TUTORIALS_DIR, { withFileTypes: true })
+    .filter((d) => d.isDirectory())
+    .map((d) => loadTutorialMeta(d.name))
+    .filter(Boolean)
+    .map(({ body: _body, ...rest }) => rest) // omit body from list
+}
 
 // ── Express app ──────────────────────────────────────────────────────────────
 
@@ -51,26 +74,35 @@ app.patch('/api/sessions/:id', (req, res) => {
 
 // ── Tutorial API ──────────────────────────────────────────────────────────────
 
-app.get('/api/tutorials/:id/meta', (req, res) => {
-  const metaPath = path.join(TUTORIALS_DIR, req.params.id, 'meta.json')
-  if (!fs.existsSync(metaPath)) return res.status(404).json({ error: 'Not found' })
-  res.json(JSON.parse(fs.readFileSync(metaPath, 'utf8')))
+// List all available tutorials
+app.get('/api/tutorials', (_req, res) => {
+  res.json(listTutorials())
 })
 
-app.get('/api/tutorials/:id/step/:index', (req, res) => {
-  const metaPath = path.join(TUTORIALS_DIR, req.params.id, 'meta.json')
-  if (!fs.existsSync(metaPath)) return res.status(404).json({ error: 'Tutorial not found' })
+// Get metadata for a single tutorial (includes environment spec and steps list)
+app.get('/api/tutorials/:id/meta', (req, res) => {
+  const meta = loadTutorialMeta(req.params.id)
+  if (!meta) return res.status(404).json({ error: 'Tutorial not found' })
+  res.json(meta)
+})
 
-  const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'))
+// Get a single step's markdown (strips frontmatter before sending)
+app.get('/api/tutorials/:id/step/:index', (req, res) => {
+  const meta = loadTutorialMeta(req.params.id)
+  if (!meta) return res.status(404).json({ error: 'Tutorial not found' })
+
   const idx = parseInt(req.params.index, 10)
   if (isNaN(idx) || idx < 0 || idx >= meta.steps.length) {
     return res.status(404).json({ error: 'Step not found' })
   }
 
-  const mdPath = path.join(TUTORIALS_DIR, req.params.id, meta.steps[idx].file)
+  const stepFile = meta.steps[idx].file
+  const mdPath = path.join(TUTORIALS_DIR, req.params.id, stepFile)
   if (!fs.existsSync(mdPath)) return res.status(404).json({ error: 'Step file not found' })
 
-  res.json({ markdown: fs.readFileSync(mdPath, 'utf8') })
+  // Strip frontmatter — only send the body to the frontend
+  const { content } = matter(fs.readFileSync(mdPath, 'utf8'))
+  res.json({ markdown: content.trim() })
 })
 
 // ── LXC image export ─────────────────────────────────────────────────────────
