@@ -417,6 +417,46 @@ Tutorial steps were using `snapcraft --destructive-mode` (old syntax). Update to
 
 ---
 
+## Phase 20 — Fix: snapcraft `make` plugin fails with "No rule to make target 'install'"
+
+**Instruction:**  
+Building snaps fails with `make: *** No rule to make target 'install'. Stop.`
+
+**Root cause:**  
+The `plugin: make` plugin automatically runs both `make` and `make install DESTDIR=$CRAFT_PART_INSTALL`. Our Makefile only has a default and `clean` target — no `install` target — so the second step fails.
+
+**Fix:**  
+Switch both tutorials from `plugin: make` to `plugin: nil` with an explicit `override-build` section:
+
+```yaml
+parts:
+  inspire:
+    plugin: nil
+    source: src/
+    build-packages:
+      - gcc
+      - libcurl4-openssl-dev
+    stage-packages:
+      - libcurl4
+    override-build: |
+      make
+      install -m755 inspire "$CRAFT_PART_INSTALL/"
+```
+
+`plugin: nil` means snapcraft does nothing automatically — `override-build` gives full control. The `install` command (from coreutils) copies the binary into the staging area with correct permissions.
+
+Also added `gcc` to `build-packages` (was previously implicit).
+
+**Files changed:**
+- `tutorials/hello-snap/step4.md` — switched to `plugin: nil`, updated key fields table
+- `tutorials/snap-confinement/step3.md` — switched to `plugin: nil`
+
+**General rule for future tutorials:** Prefer `plugin: nil` + `override-build` for simple C builds. Only use `plugin: make` when the project's Makefile has a proper `install` target.
+
+**Commit:** `a45ab44` — `fix: use plugin:nil + override-build instead of plugin:make`
+
+---
+
 ## Standing instruction (Phase 17+)
 
 > **Always update `genesis.md` after every change to the project**, no matter how small. Add a new Phase section describing: the instruction given, the implementation, any pitfalls encountered, and the commit SHA.
