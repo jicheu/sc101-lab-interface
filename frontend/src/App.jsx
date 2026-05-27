@@ -9,6 +9,7 @@ export default function App() {
   const [session, setSession] = useState(null)
   const [checking, setChecking] = useState(true)
   const [activeTutorialId, setActiveTutorialId] = useState(null)
+  const [lastTutorialId, setLastTutorialId] = useState(null)
   const [tutorialProgress, setTutorialProgress] = useState(null)
   const [allTutorials, setAllTutorials] = useState([])
 
@@ -32,20 +33,24 @@ export default function App() {
   const sendCommandRef = useRef(null)
   const registerSendCommand = useCallback((fn) => { sendCommandRef.current = fn }, [])
   const handleRunCommand = useCallback((command) => { sendCommandRef.current?.(command) }, [])
+  const tutorialKey = (t) => t?.uid ?? t?.id
 
   const handleLogout = () => {
     localStorage.removeItem('sc101_session_id')
     setSession(null)
     setActiveTutorialId(null)
+    setLastTutorialId(null)
     setTutorialProgress(null)
   }
 
   const handleTutorialSelect = (updatedSession) => {
     setSession(updatedSession)
     setActiveTutorialId(updatedSession.tutorialId)
+    setLastTutorialId(updatedSession.tutorialId)
   }
 
   const handleBackToSelector = async () => {
+    const previousTutorialId = activeTutorialId || session.tutorialId
     const s = await fetch(`/api/sessions/${session.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -53,13 +58,14 @@ export default function App() {
     }).then((r) => r.json()).catch(() => null)
     if (s) setSession(s)
     setActiveTutorialId(null)
+    setLastTutorialId(previousTutorialId)
     setTutorialProgress(null)
   }
 
   // Find the immediately next tutorial in list order
   const nextTutorial = (() => {
     if (!activeTutorialId || !allTutorials.length) return null
-    const idx = allTutorials.findIndex((t) => t.id === activeTutorialId)
+    const idx = allTutorials.findIndex((t) => tutorialKey(t) === activeTutorialId || t.id === activeTutorialId)
     if (idx === -1 || idx >= allTutorials.length - 1) return null
     return allTutorials[idx + 1]
   })()
@@ -69,10 +75,11 @@ export default function App() {
       const s = await fetch(`/api/sessions/${session.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tutorialId: nextTutorial.id, currentStep: 0 }),
+        body: JSON.stringify({ tutorialId: tutorialKey(nextTutorial), currentStep: 0 }),
       }).then((r) => r.json()).catch(() => null)
       if (s) setSession(s)
-      setActiveTutorialId(nextTutorial.id)
+      setActiveTutorialId(tutorialKey(nextTutorial))
+      setLastTutorialId(tutorialKey(nextTutorial))
       setTutorialProgress(null)
     } else {
       handleBackToSelector()
@@ -95,7 +102,7 @@ export default function App() {
         session={session}
         onSelect={handleTutorialSelect}
         onLogout={handleLogout}
-        activeTutorialId={activeTutorialId}
+        activeTutorialId={lastTutorialId}
       />
     )
   }

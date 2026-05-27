@@ -1,6 +1,6 @@
 'use strict'
 
-const { execSync } = require('child_process')
+const { spawnSync } = require('child_process')
 
 // Grace period before stopping an idle container (ms)
 const IDLE_STOP_DELAY = 60_000
@@ -10,17 +10,24 @@ const activeConnections = new Map()
 // Pending stop timers: containerName → timeoutId
 const stopTimers = new Map()
 
-function run(cmd) {
-  return execSync(cmd, { encoding: 'utf8' }).trim()
+function run(args) {
+  const result = spawnSync('lxc', args, { encoding: 'utf8' })
+  if (result.error) throw result.error
+  if (result.status !== 0) {
+    const err = new Error((result.stderr || result.stdout || `lxc ${args.join(' ')} failed`).trim())
+    err.status = result.status
+    throw err
+  }
+  return result.stdout.trim()
 }
 
 function containerExists(name) {
-  try { run(`lxc info ${name}`); return true } catch { return false }
+  try { run(['info', name]); return true } catch { return false }
 }
 
 function containerRunning(name) {
   try {
-    const out = run(`lxc list ${name} --format csv -c s`)
+    const out = run(['list', name, '--format', 'csv', '-c', 's'])
     return out.trim() === 'RUNNING'
   } catch { return false }
 }
@@ -32,12 +39,12 @@ function sleep(ms) {
 async function ensureContainerForUser(containerName) {
   if (!containerExists(containerName)) {
     console.log(`[lxd] Creating container ${containerName}…`)
-    run(`lxc launch ubuntu:24.04 ${containerName}`)
+    run(['launch', 'ubuntu:24.04', containerName])
     await sleep(3000)
     console.log(`[lxd] Container ${containerName} created.`)
   } else if (!containerRunning(containerName)) {
     console.log(`[lxd] Starting container ${containerName}…`)
-    run(`lxc start ${containerName}`)
+    run(['start', containerName])
     await sleep(2000)
   } else {
     console.log(`[lxd] Container ${containerName} already running.`)
@@ -47,7 +54,7 @@ async function ensureContainerForUser(containerName) {
 function stopContainer(name) {
   if (containerRunning(name)) {
     console.log(`[lxd] Stopping idle container ${name}…`)
-    try { run(`lxc stop --force ${name}`) } catch (e) { console.error(`[lxd] Stop failed: ${e.message}`) }
+    try { run(['stop', '--force', name]) } catch (e) { console.error(`[lxd] Stop failed: ${e.message}`) }
   }
 }
 
@@ -55,8 +62,8 @@ function destroyContainer(name) {
   if (!containerExists(name)) return
   console.log(`[lxd] Destroying container ${name}…`)
   try {
-    if (containerRunning(name)) run(`lxc stop --force ${name}`)
-    run(`lxc delete ${name}`)
+    if (containerRunning(name)) run(['stop', '--force', name])
+    run(['delete', name])
     console.log(`[lxd] Container ${name} destroyed.`)
   } catch (e) {
     console.error(`[lxd] Destroy failed: ${e.message}`)
@@ -66,12 +73,12 @@ function destroyContainer(name) {
 // Stop all sc101-* containers — called once at startup so we start clean
 function stopAllContainers() {
   try {
-    const out = run(`lxc list --format csv -c n,s`)
+    const out = run(['list', '--format', 'csv', '-c', 'n,s'])
     for (const line of out.split('\n')) {
       const [name, state] = line.split(',')
       if (name && name.startsWith('sc101-') && state && state.trim() === 'RUNNING') {
         console.log(`[lxd] Stopping container ${name} on startup…`)
-        try { run(`lxc stop --force ${name}`) } catch {}
+        try { run(['stop', '--force', name]) } catch {}
       }
     }
   } catch {}

@@ -6,7 +6,7 @@ const { WebSocketServer, WebSocket } = require('ws')
 const path = require('path')
 const fs = require('fs')
 const pty = require('node-pty')
-const { exec } = require('child_process')
+const { execFile } = require('child_process')
 const { ensureContainerForUser, stopAllContainers, destroyContainer, onConnect, onDisconnect } = require('./lxd')
 const sessions = require('./sessions')
 
@@ -23,6 +23,17 @@ function courseDisplayName(dirName) {
   return dirName.replace(/_/g, ' ')
 }
 
+function tutorialUid(courseDir, tutorialDir) {
+  return `${courseDir}/${tutorialDir}`
+}
+
+function safeResolve(baseDir, ...parts) {
+  const base = path.resolve(baseDir)
+  const resolved = path.resolve(base, ...parts)
+  if (resolved !== base && !resolved.startsWith(`${base}${path.sep}`)) return null
+  return resolved
+}
+
 function loadTutorialMeta(courseDir, tutorialId) {
   const indexPath = path.join(TUTORIALS_DIR, courseDir, tutorialId, 'index.md')
   if (!fs.existsSync(indexPath)) return null
@@ -30,7 +41,11 @@ function loadTutorialMeta(courseDir, tutorialId) {
     const { data, content } = matter(fs.readFileSync(indexPath, 'utf8'))
     return { 
       ...data, 
-      id: data.id || tutorialId, 
+      id: data.id || tutorialId,
+      tutorialId: data.id || tutorialId,
+      folderId: tutorialId,
+      uid: tutorialUid(courseDir, tutorialId),
+      courseId: courseDir,
       course: courseDisplayName(courseDir),
       body: content.trim() 
     }
@@ -40,21 +55,36 @@ function loadTutorialMeta(courseDir, tutorialId) {
   }
 }
 
-// Find a tutorial by ID across all courses (returns { courseDir, meta })
-function findTutorial(tutorialId) {
+// Find a tutorial by UID ("courseDir/tutorialDir") or by legacy tutorial ID.
+function findTutorial(tutorialRef) {
   if (!fs.existsSync(TUTORIALS_DIR)) return null
   try {
+    if (tutorialRef?.includes('/')) {
+      const [courseDir, tutorialDir, ...extra] = tutorialRef.split('/')
+      if (!courseDir || !tutorialDir || extra.length) return null
+      const tutPath = safeResolve(TUTORIALS_DIR, courseDir, tutorialDir)
+      if (!tutPath || !fs.existsSync(tutPath) || !fs.statSync(tutPath).isDirectory()) return null
+      const meta = loadTutorialMeta(courseDir, tutorialDir)
+      return meta ? { courseDir, tutorialDir, meta } : null
+    }
+
     const courses = fs.readdirSync(TUTORIALS_DIR, { withFileTypes: true })
       .filter((d) => d.isDirectory())
+      .sort((a, b) => a.name.localeCompare(b.name))
     for (const course of courses) {
-      const tutPath = path.join(TUTORIALS_DIR, course.name, tutorialId)
-      if (fs.existsSync(tutPath) && fs.statSync(tutPath).isDirectory()) {
-        const meta = loadTutorialMeta(course.name, tutorialId)
-        if (meta) return { courseDir: course.name, meta }
+      const courseFullPath = path.join(TUTORIALS_DIR, course.name)
+      const tutorials = fs.readdirSync(courseFullPath, { withFileTypes: true })
+        .filter((d) => d.isDirectory())
+        .sort((a, b) => a.name.localeCompare(b.name))
+      for (const tut of tutorials) {
+        const meta = loadTutorialMeta(course.name, tut.name)
+        if (meta && (tut.name === tutorialRef || meta.id === tutorialRef)) {
+          return { courseDir: course.name, tutorialDir: tut.name, meta }
+        }
       }
     }
   } catch (e) {
-    console.error(`[tutorials] findTutorial(${tutorialId}) error: ${e.message}`)
+    console.error(`[tutorials] findTutorial(${tutorialRef}) error: ${e.message}`)
   }
   return null
 }
@@ -66,11 +96,13 @@ function listTutorials() {
   try {
     const courses = fs.readdirSync(TUTORIALS_DIR, { withFileTypes: true })
       .filter((d) => d.isDirectory())
+      .sort((a, b) => a.name.localeCompare(b.name))
     for (const course of courses) {
       const courseFullPath = path.join(TUTORIALS_DIR, course.name)
       try {
         const tutorials = fs.readdirSync(courseFullPath, { withFileTypes: true })
           .filter((d) => d.isDirectory())
+          .sort((a, b) => a.name.localeCompare(b.name))
         for (const tut of tutorials) {
           try {
             const meta = loadTutorialMeta(course.name, tut.name)
@@ -100,7 +132,7 @@ app.use(express.json())
 // ── Session API ───────────────────────────────────────────────────────────────
 
 app.get('/api/sessions', (_req, res) => {
-  res.json(sessions.list())
+  res.status(404).json({ error: 'Not found' })
 })
 
 app.get('/api/sessions/:id', (req, res) => {
@@ -161,12 +193,11 @@ app.get('/api/tutorials/:id/meta', (req, res) => {
 // Validate a tutorial — checks frontmatter, required fields, step files
 app.get('/api/tutorials/:id/validate', (req, res) => {
   const errors = []
-  const tutId = req.params.id
-  const found = findTutorial(tutId)
+  const found = findTutorial(req.params.id)
 
   if (!found) return res.status(404).json({ valid: false, errors: [{ file: 'index.md', message: 'Tutorial folder not found' }] })
 
-  const dir = path.join(TUTORIALS_DIR, found.courseDir, tutId)
+  const dir = path.join(TUTORIALS_DIR, found.courseDir, found.tutorialDir)
   const indexPath = path.join(dir, 'index.md')
   if (!fs.existsSync(indexPath)) {
     return res.json({ valid: false, errors: [{ file: 'index.md', message: 'index.md is missing' }] })
@@ -190,7 +221,11 @@ app.get('/api/tutorials/:id/validate', (req, res) => {
     meta.steps.forEach((step, i) => {
       if (!step.file) { errors.push({ file: 'index.md', message: `Step ${i + 1} is missing "file"` }); return }
       if (!step.title) errors.push({ file: step.file, message: 'Missing "title" in step entry' })
-      const stepPath = path.join(dir, step.file)
+      const stepPath = safeResolve(dir, step.file)
+      if (!stepPath) {
+        errors.push({ file: step.file, message: 'Step file must stay inside the tutorial folder' })
+        return
+      }
       if (!fs.existsSync(stepPath)) {
         errors.push({ file: step.file, message: 'File not found' })
         return
@@ -219,12 +254,18 @@ app.get('/api/tutorials/:id/step/:index', (req, res) => {
   }
 
   const stepFile = meta.steps[idx].file
-  const mdPath = path.join(TUTORIALS_DIR, found.courseDir, req.params.id, stepFile)
+  const tutorialDir = path.join(TUTORIALS_DIR, found.courseDir, found.tutorialDir)
+  const mdPath = safeResolve(tutorialDir, stepFile)
+  if (!mdPath) return res.status(400).json({ error: 'Step file must stay inside the tutorial folder' })
   if (!fs.existsSync(mdPath)) return res.status(404).json({ error: 'Step file not found' })
 
-  // Strip frontmatter — only send the body to the frontend
-  const { content } = matter(fs.readFileSync(mdPath, 'utf8'))
-  res.json({ markdown: content.trim() })
+  try {
+    // Strip frontmatter — only send the body to the frontend
+    const { content } = matter(fs.readFileSync(mdPath, 'utf8'))
+    res.json({ markdown: content.trim() })
+  } catch (e) {
+    res.status(500).json({ error: `Failed to read step: ${e.message}` })
+  }
 })
 
 // ── LXC image export ─────────────────────────────────────────────────────────
@@ -234,11 +275,14 @@ app.get('/api/sessions/:id/export', (req, res) => {
   if (!session) return res.status(404).json({ error: 'Session not found' })
 
   const { containerName } = session
+  if (!/^sc101-[a-z0-9-]+$/.test(containerName)) {
+    return res.status(400).json({ error: 'Invalid container name' })
+  }
   const tmpFile = `/tmp/${containerName}-${Date.now()}.tar.gz`
   const filename = `${containerName}.tar.gz`
 
   // --instance-only: skip images, works on running containers
-  exec(`lxc export ${containerName} ${tmpFile} --instance-only`, { timeout: 600_000 }, (err) => {
+  execFile('lxc', ['export', containerName, tmpFile, '--instance-only'], { timeout: 600_000 }, (err) => {
     if (err) {
       try { fs.unlinkSync(tmpFile) } catch {}
       return res.status(500).json({ error: err.message || 'lxc export failed' })

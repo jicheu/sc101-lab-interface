@@ -12,7 +12,10 @@ function load() {
 }
 
 function save(sessions) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(sessions, null, 2))
+  fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true })
+  const tmpFile = `${DATA_FILE}.${process.pid}.${Date.now()}.${crypto.randomBytes(4).toString('hex')}.tmp`
+  fs.writeFileSync(tmpFile, JSON.stringify(sessions, null, 2))
+  fs.renameSync(tmpFile, DATA_FILE)
 }
 
 function list() {
@@ -26,7 +29,7 @@ function get(id) {
 function create({ username, tutorialId = null }) {
   const sessions = load()
   const id = crypto.randomBytes(8).toString('hex')
-  const containerName = sanitizeContainerName(username)
+  const containerName = sanitizeContainerName(username, id)
   const now = new Date().toISOString()
   const session = {
     id, username, containerName,
@@ -46,9 +49,9 @@ function update(id, patch) {
   const s = sessions[id]
 
   // Handle progress update: { tutorialId, currentStep, status }
-  if (patch.tutorialId !== undefined || patch.currentStep !== undefined) {
-    const tid = patch.tutorialId ?? s.tutorialId
-    const step = patch.currentStep ?? s.currentStep
+  if (Object.hasOwn(patch, 'tutorialId') || Object.hasOwn(patch, 'currentStep')) {
+    const tid = Object.hasOwn(patch, 'tutorialId') ? patch.tutorialId : s.tutorialId
+    const step = Object.hasOwn(patch, 'currentStep') ? patch.currentStep : s.currentStep
     const totalSteps = patch.totalSteps    // optional, sent by frontend
     let status = 'in-progress'
     if (patch.status) {
@@ -63,7 +66,7 @@ function update(id, patch) {
     }
 
     const progress = { ...(s.progress || {}) }
-    progress[tid] = { currentStep: step, status }
+    if (tid) progress[tid] = { currentStep: step, status }
 
     sessions[id] = {
       ...s,
@@ -80,10 +83,11 @@ function update(id, patch) {
   return sessions[id]
 }
 
-function sanitizeContainerName(username) {
+function sanitizeContainerName(username, suffix = '') {
   // LXD names: lowercase alphanumeric + hyphens, start with letter, max 63 chars
-  const safe = username.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-+|-+$/g, '').slice(0, 50)
-  const name = `sc101-${safe || 'user'}`
+  const safe = username.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-+|-+$/g, '').slice(0, 42)
+  const suffixPart = suffix ? `-${suffix.slice(0, 8).toLowerCase().replace(/[^a-z0-9]/g, '')}` : ''
+  const name = `sc101-${safe || 'user'}${suffixPart}`
   return name
 }
 

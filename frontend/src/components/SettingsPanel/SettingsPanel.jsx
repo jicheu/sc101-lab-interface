@@ -108,7 +108,7 @@ export default function SettingsPanel({ session, tutorialProgress }) {
                 <div className="sc101-settings-label">Signed in as</div>
                 <div className="sc101-settings-value sc101-settings-username">
                   <span className="sc101-avatar sc101-avatar--sm">
-                    {session.username[0].toUpperCase()}
+                    {session.username?.[0]?.toUpperCase() ?? '?'}
                   </span>
                   {session.username}
                 </div>

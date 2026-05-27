@@ -29,8 +29,18 @@ export default function TutorialSelector({ session, onSelect, onLogout, activeTu
   const [tutorials, setTutorials] = useState([])
   const [validation, setValidation] = useState({})
   const [collapsedCourses, setCollapsedCourses] = useState({})
+  const [expanded, setExpanded] = useState(null)
   const [loading, setLoading]     = useState(true)
   const [fetchError, setFetchError] = useState(null)
+
+  const tutorialKey = (t) => t?.uid ?? t?.id
+  const encodeTutorialRef = (ref) => encodeURIComponent(ref)
+  const requirementKey = (tut, requiredId) => {
+    const sameCourse = tutorials.find((t) =>
+      t.courseId === tut.courseId && (t.id === requiredId || t.tutorialId === requiredId || t.folderId === requiredId)
+    )
+    return sameCourse ? tutorialKey(sameCourse) : requiredId
+  }
 
   useEffect(() => {
     fetch('/api/tutorials')
@@ -43,72 +53,76 @@ export default function TutorialSelector({ session, onSelect, onLogout, activeTu
         setTutorials(list)
 
         // Build initial collapsed state: all folded except the course of the active tutorial
+        const keyOf = (t) => t?.uid ?? t?.id
         const activeCourse = activeTutorialId
-          ? list.find((t) => t.id === activeTutorialId)?.course ?? null
+          ? list.find((t) => keyOf(t) === activeTutorialId || t.id === activeTutorialId)?.courseId ?? null
           : null
-        const courseNames = [...new Set(list.map((t) => t.course))]
+        const courseNames = [...new Set(list.map((t) => t.courseId))]
         const initial = {}
         for (const c of courseNames) initial[c] = (c !== activeCourse)
         setCollapsedCourses(initial)
 
         const results = await Promise.all(
           list.map((t) =>
-            fetch(`/api/tutorials/${t.id}/validate`)
+            fetch(`/api/tutorials/${encodeTutorialRef(keyOf(t))}/validate`)
               .then((r) => r.json())
-              .then((v) => [t.id, v])
-              .catch(() => [t.id, { valid: true, errors: [] }])
+              .then((v) => [keyOf(t), v])
+              .catch((e) => [keyOf(t), { valid: false, errors: [{ file: 'index.md', message: `Validation unavailable: ${e.message}` }] }])
           )
         )
         setValidation(Object.fromEntries(results))
         setLoading(false)
       })
       .catch((e) => { setFetchError(e.message); setLoading(false) })
-  }, [])
+  }, [activeTutorialId])
 
-  const getProgress = (tutorialId) => {
-    const p = session?.progress?.[tutorialId]
+  const getProgress = (tutorialId, legacyId) => {
+    const p = session?.progress?.[tutorialId] ?? session?.progress?.[legacyId]
     if (!p) return { status: 'not-started', currentStep: 0 }
     return p
   }
 
   const requirementsMet = (tut) => {
     if (!tut.requires?.length) return { met: true, unmet: [] }
-    const unmet = tut.requires.filter((rid) => getProgress(rid).status !== 'completed')
+    const unmet = tut.requires.filter((rid) => getProgress(requirementKey(tut, rid), rid).status !== 'completed')
     return { met: unmet.length === 0, unmet }
   }
 
   // ── Progress calculations ────────────────────────────────────────────────
   const totalCount = tutorials.length
-  const completedCount = tutorials.filter((t) => getProgress(t.id).status === 'completed').length
+  const completedCount = tutorials.filter((t) => getProgress(tutorialKey(t), t.id).status === 'completed').length
   const globalPct = totalCount ? Math.round((completedCount / totalCount) * 100) : 0
 
   // Group tutorials by course, then by section within each course
   const courses = []
   const courseMap = {}
   for (const t of tutorials) {
-    const courseName = t.course || 'Uncategorised'
-    if (!courseMap[courseName]) { courseMap[courseName] = { sections: [], sectionMap: {} }; courses.push(courseName) }
-    const sec = t.section || 'Uncategorised'
-    if (!courseMap[courseName].sectionMap[sec]) {
-      courseMap[courseName].sectionMap[sec] = []
-      courseMap[courseName].sections.push(sec)
+    const courseId = t.courseId || t.course || 'Uncategorised'
+    if (!courseMap[courseId]) {
+      courseMap[courseId] = { title: t.course || courseId, sections: [], sectionMap: {} }
+      courses.push(courseId)
     }
-    courseMap[courseName].sectionMap[sec].push(t)
+    const sec = t.section || 'Uncategorised'
+    if (!courseMap[courseId].sectionMap[sec]) {
+      courseMap[courseId].sectionMap[sec] = []
+      courseMap[courseId].sections.push(sec)
+    }
+    courseMap[courseId].sectionMap[sec].push(t)
   }
 
-  const courseProgress = (courseName) => {
-    const cData = courseMap[courseName]
+  const courseProgress = (courseId) => {
+    const cData = courseMap[courseId]
     if (!cData) return 0
     const list = Object.values(cData.sectionMap).flat()
     const total = list.length
-    const done = list.filter((t) => getProgress(t.id).status === 'completed').length
+    const done = list.filter((t) => getProgress(tutorialKey(t), t.id).status === 'completed').length
     return total ? Math.round((done / total) * 100) : 0
   }
 
-  const sectionProgress = (courseName, secName) => {
-    const list = courseMap[courseName]?.sectionMap[secName] || []
+  const sectionProgress = (courseId, secName) => {
+    const list = courseMap[courseId]?.sectionMap[secName] || []
     const total = list.length
-    const done = list.filter((t) => getProgress(t.id).status === 'completed').length
+    const done = list.filter((t) => getProgress(tutorialKey(t), t.id).status === 'completed').length
     return total ? Math.round((done / total) * 100) : 0
   }
 
@@ -117,53 +131,59 @@ export default function TutorialSelector({ session, onSelect, onLogout, activeTu
   // - root=null means these are standalone tutorials with no parent in this section
   // - root=tut  means this root + its direct dependents form one visual group
   const buildSectionGroups = (list) => {
-    const ids = new Set(list.map((t) => t.id))
+    const ids = new Set(list.map((t) => tutorialKey(t)))
     // A tutorial is a "root" in this section if it has no requires within this section
-    const isLocalRoot = (t) => !t.requires?.some((r) => ids.has(r))
+    const isLocalRoot = (t) => !t.requires?.some((r) => ids.has(requirementKey(t, r)))
     // Map: rootId → direct children within this section
     const childrenOf = {}
     for (const t of list) {
-      if (isLocalRoot(t)) { childrenOf[t.id] = [] }
+      if (isLocalRoot(t)) { childrenOf[tutorialKey(t)] = [] }
     }
     for (const t of list) {
       if (!isLocalRoot(t)) {
         // attach to the first local parent
-        const localParent = t.requires?.find((r) => ids.has(r))
+        const localParent = t.requires?.map((r) => requirementKey(t, r)).find((r) => ids.has(r))
         if (localParent && childrenOf[localParent]) childrenOf[localParent].push(t)
       }
     }
     return list
       .filter((t) => isLocalRoot(t))
-      .map((root) => ({ root, children: childrenOf[root.id] || [] }))
+      .map((root) => ({ root, children: childrenOf[tutorialKey(root)] || [] }))
   }
 
   const handleSelect = async (tut) => {
-    const v = validation[tut.id]
+    const key = tutorialKey(tut)
+    const progress = getProgress(key, tut.id)
+    const v = validation[key]
     if (v && !v.valid) return
     await fetch(`/api/sessions/${session.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tutorialId: tut.id, currentStep: getProgress(tut.id).currentStep || 0 }),
+      body: JSON.stringify({ tutorialId: key, currentStep: progress.currentStep || 0 }),
     }).catch(() => {})
-    onSelect({ ...session, tutorialId: tut.id, currentStep: getProgress(tut.id).currentStep || 0 })
+    onSelect({ ...session, tutorialId: key, currentStep: progress.currentStep || 0 })
   }
 
   // ── Tutorial card ────────────────────────────────────────────────────────
   const TutorialCard = ({ tut }) => {
-    const v = validation[tut.id] ?? { valid: true, errors: [] }
-    const progress   = getProgress(tut.id)
+    const key = tutorialKey(tut)
+    const v = validation[key] ?? { valid: true, errors: [] }
+    const progress   = getProgress(key, tut.id)
     const statusInfo = STATUS_LABEL[progress.status] ?? STATUS_LABEL['not-started']
     const { met, unmet } = requirementsMet(tut)
     const isBroken   = !v.valid
     const totalSteps = tut.steps?.length ?? 0
-    const errOpen    = expanded === tut.id
-    const tutPct     = totalSteps
-      ? Math.round(((progress.currentStep + (progress.status === 'completed' ? totalSteps : 0)) / totalSteps) * 100)
-      : 0
+    const errOpen    = expanded === key
+    const tutPct     = progress.status === 'completed'
+      ? 100
+      : totalSteps
+        ? Math.round(((progress.currentStep + 1) / totalSteps) * 100)
+        : 0
 
     const reqTutorials = (tut.requires || []).map((rid) => {
-      const found = tutorials.find((t) => t.id === rid)
-      return { id: rid, title: found?.title ?? rid, done: getProgress(rid).status === 'completed' }
+      const reqKey = requirementKey(tut, rid)
+      const found = tutorials.find((t) => tutorialKey(t) === reqKey || t.id === rid)
+      return { id: reqKey, title: found?.title ?? rid, done: getProgress(reqKey, rid).status === 'completed' }
     })
 
     return (
@@ -176,10 +196,10 @@ export default function TutorialSelector({ session, onSelect, onLogout, activeTu
             >{tut.difficulty ?? 'unknown'}</span>
             <span className={`sc101-badge ${statusInfo.cls}`}>{statusInfo.text}</span>
             {isBroken && (
-              <button
-                className="sc101-badge sc101-badge--broken"
-                onClick={() => setExpanded(errOpen ? null : tut.id)}
-              >⚠ broken {errOpen ? '▲' : '▼'}</button>
+                <button
+                  className="sc101-badge sc101-badge--broken"
+                  onClick={() => setExpanded(errOpen ? null : key)}
+                >⚠ broken {errOpen ? '▲' : '▼'}</button>
             )}
           </div>
           {tut.time && <span className="sc101-tut-time">⏱ {tut.time} min</span>}
@@ -281,24 +301,26 @@ export default function TutorialSelector({ session, onSelect, onLogout, activeTu
           <div className="sc101-selector-empty">No tutorials found in the <code>tutorials/</code> folder.</div>
         )}
 
-        {!loading && !fetchError && courses.map((courseName) => {
-          const cData = courseMap[courseName]
-          const cPct = courseProgress(courseName)
-          const isCollapsed = collapsedCourses[courseName] ?? false
-          const toggle = () => setCollapsedCourses((prev) => ({ ...prev, [courseName]: !isCollapsed }))
+        {!loading && !fetchError && courses.map((courseId) => {
+          const cData = courseMap[courseId]
+          const cPct = courseProgress(courseId)
+          const isCollapsed = collapsedCourses[courseId] ?? false
+          const toggle = () => setCollapsedCourses((prev) => ({ ...prev, [courseId]: !isCollapsed }))
           return (
-            <div key={courseName} className="sc101-course">
-              <button className="sc101-course-header" onClick={toggle} aria-expanded={!isCollapsed}>
+            <div key={courseId} className="sc101-course">
+              <div className="sc101-course-header">
                 <div className="sc101-course-title-row">
-                  <span className="sc101-course-chevron">{isCollapsed ? '▶' : '▼'}</span>
-                  <h2 className="sc101-course-title">{courseName}</h2>
+                  <button className="sc101-course-toggle" onClick={toggle} aria-expanded={!isCollapsed}>
+                    <span className="sc101-course-chevron">{isCollapsed ? '▶' : '▼'}</span>
+                    <span>{cData.title}</span>
+                  </button>
                   <span className="sc101-course-pct">{cPct}%</span>
                 </div>
                 <ProgressBar pct={cPct} size="md" />
-              </button>
+              </div>
 
               {!isCollapsed && cData.sections.map((secName) => {
-                const secPct = sectionProgress(courseName, secName)
+                const secPct = sectionProgress(courseId, secName)
                 const secList = cData.sectionMap[secName]
                 const secGroups = buildSectionGroups(secList)
                 return (
@@ -311,13 +333,13 @@ export default function TutorialSelector({ session, onSelect, onLogout, activeTu
                       <ProgressBar pct={secPct} size="sm" />
                     </div>
                     {secGroups.map((group) => (
-                      <div key={group.root.id} className="sc101-tut-group">
+                      <div key={tutorialKey(group.root)} className="sc101-tut-group">
                         <div className="sc101-tutorial-grid sc101-tutorial-grid--root">
                           <TutorialCard tut={group.root} />
                         </div>
                         {group.children.length > 0 && (
                           <div className="sc101-tutorial-grid sc101-tutorial-grid--children">
-                            {group.children.map((tut) => <TutorialCard key={tut.id} tut={tut} />)}
+                            {group.children.map((tut) => <TutorialCard key={tutorialKey(tut)} tut={tut} />)}
                           </div>
                         )}
                       </div>

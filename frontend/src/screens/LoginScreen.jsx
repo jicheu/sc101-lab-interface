@@ -10,11 +10,14 @@ export default function LoginScreen({ onSession }) {
   const [deletingId, setDeletingId] = useState(null)
 
   useEffect(() => {
-    fetch('/api/sessions')
-      .then((r) => r.json())
-      .then((list) => {
-        setSessions(list)
-        if (list.length > 0) setTab('resume')
+    const saved = localStorage.getItem('sc101_session_id')
+    if (!saved) return
+    fetch(`/api/sessions/${saved}`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((session) => {
+        if (!session) return
+        setSessions([session])
+        setTab('resume')
       })
       .catch(() => {})
   }, [])
@@ -147,7 +150,7 @@ export default function LoginScreen({ onSession }) {
                           onClick={() => resume(s)}
                           disabled={deletingId === s.id}
                         >
-                          <div className="sc101-avatar">{s.username[0].toUpperCase()}</div>
+                          <div className="sc101-avatar">{s.username?.[0]?.toUpperCase() ?? '?'}</div>
                           <div style={{ flex: 1 }}>
                             <div className="sc101-session-name">{s.username}</div>
                             <div className="sc101-session-meta">

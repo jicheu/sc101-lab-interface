@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { marked, Renderer } from 'marked'
+import DOMPurify from 'dompurify'
 import Prism from 'prismjs'
 import 'prismjs/components/prism-bash'
 import 'prismjs/components/prism-c'
@@ -38,11 +39,17 @@ function escapeHtml(s) {
 }
 
 function escapeAttr(s) {
-  return s.replace(/"/g, '&quot;').replace(/\n/g, '&#10;')
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\n/g, '&#10;')
 }
 
 export default function TutorialPane({ tutorialId: tutorialIdProp, session, onRunCommand, onProgress, nextTutorial, onFinish }) {
   const tutorialId = tutorialIdProp ?? session?.tutorialId ?? 'hello-snap'
+  const tutorialRef = encodeURIComponent(tutorialId)
   const [meta, setMeta] = useState(null)
   const [stepIndex, setStepIndex] = useState(session?.currentStep ?? 0)
   const [html, setHtml] = useState('')
@@ -59,11 +66,14 @@ export default function TutorialPane({ tutorialId: tutorialIdProp, session, onRu
     setLoading(true)
     setError(null)
     setShowFinish(false)
-    fetch(`/api/tutorials/${tutorialId}/meta`)
-      .then((r) => r.json())
+    fetch(`/api/tutorials/${tutorialRef}/meta`)
+      .then((r) => {
+        if (!r.ok) throw new Error(`Server error ${r.status}`)
+        return r.json()
+      })
       .then(setMeta)
       .catch((e) => setError(e.message))
-  }, [tutorialId])
+  }, [tutorialId, tutorialRef])
 
   useEffect(() => {
     if (!meta) return
@@ -77,12 +87,16 @@ export default function TutorialPane({ tutorialId: tutorialIdProp, session, onRu
     setError(null)
     setShowFinish(false)
     contentRef.current?.scrollTo({ top: 0, behavior: 'instant' })
-    fetch(`/api/tutorials/${tutorialId}/step/${safeIndex}`)
-      .then((r) => r.json())
+    fetch(`/api/tutorials/${tutorialRef}/step/${safeIndex}`)
+      .then((r) => {
+        if (!r.ok) throw new Error(`Server error ${r.status}`)
+        return r.json()
+      })
       .then(({ markdown }) => {
         if (!markdown) throw new Error('Empty step content')
         const renderer = buildRenderer(onRunCommand)
-        setHtml(marked.parse(markdown, { renderer }))
+        const rendered = marked.parse(markdown, { renderer })
+        setHtml(DOMPurify.sanitize(rendered, { ADD_ATTR: ['data-command'] }))
         setLoading(false)
       })
       .catch((e) => { setError(e.message); setLoading(false) })

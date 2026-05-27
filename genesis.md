@@ -775,6 +775,36 @@ sc101-lab-interface/
 
 ---
 
+## Phase 32 — Static review fixes and hardening
+
+**Goal**: Fix the review findings around course identity, selector regressions, path safety, Markdown rendering, and shell execution.
+
+**Changes**:
+1. **Stable tutorial identity**:
+   - Backend now returns `courseId`, `folderId`, and `uid` (`courseId/tutorial-folder`) for every tutorial.
+   - Frontend uses `uid` for session progress, selection, validation, prerequisites, and "next tutorial" lookup.
+   - Legacy tutorial IDs still work as a fallback for existing progress data.
+2. **Selector regressions**:
+   - Restored broken-tutorial expansion state.
+   - Fixed "return to selector" so the course containing the last active tutorial unfolds while other courses stay folded.
+   - Course collapse state is keyed by stable `courseId`, not display text.
+3. **Tutorial file safety**:
+   - Step paths are resolved with a safe path check and cannot escape their tutorial folder.
+   - Step read/parse errors return structured JSON errors.
+4. **Markdown/XSS hardening**:
+   - Tutorial HTML is sanitized with DOMPurify before `dangerouslySetInnerHTML`.
+   - Run-button command attributes now escape `&`, `<`, `>`, quotes, and newlines.
+5. **Backend process/session hardening**:
+   - LXD calls now use argument-array process execution instead of shell-interpolated command strings.
+   - LXC export uses `execFile()` and validates container names.
+   - Public session listing no longer returns all sessions.
+   - Login resume now fetches only the locally saved session ID instead of enumerating all sessions.
+   - Session writes are atomic temp-file-and-rename writes.
+   - New containers include a session ID suffix to avoid username collisions.
+   - Clearing `tutorialId` with `null` now works and no longer writes `progress.null`.
+
+---
+
 ## TODO (open items)
 
 - [ ] SSO integration (replace username-only login)
