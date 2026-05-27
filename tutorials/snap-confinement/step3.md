@@ -33,7 +33,7 @@ version: '1.0'
 summary: Fetch an inspirational quote and save it to a file
 description: |
   inspire asks for a filename, fetches a random quote from
-  zenquotes.io, and writes it to the specified file.
+  api.quotable.io, and writes it to the specified file.
 
 grade: devel
 confinement: devmode
@@ -76,7 +76,7 @@ snap install --devmode ~/inspire/inspire_1.0_amd64.snap
 ### Run it
 
 ```bash run
-inspire.inspire
+inspire
 ```
 
 Enter a path like `~/quote-devmode.txt` when prompted.

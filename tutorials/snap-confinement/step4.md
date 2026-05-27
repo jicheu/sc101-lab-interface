@@ -57,7 +57,7 @@ snap install --dangerous ~/inspire/inspire_1.0_amd64.snap
 ### Part 2 — Run it and observe the first failure
 
 ```bash run
-inspire.inspire
+inspire
 ```
 
 Enter any filename (e.g. `~/quote.txt`) when prompted.
@@ -65,7 +65,7 @@ Enter any filename (e.g. `~/quote.txt`) when prompted.
 You should see an error like:
 
 ```
-Network error: Could not resolve host: zenquotes.io
+Network error: Could not resolve host: api.quotable.io
 ```
 
 **Why?** Strict confinement uses AppArmor to block all outgoing network connections by default. The snap has no `network` plug declared.
@@ -126,7 +126,7 @@ snap install --dangerous ~/inspire/inspire_1.0_amd64.snap
 Run again:
 
 ```bash run
-inspire.inspire
+inspire
 ```
 
 Enter a filename like `~/quote.txt` when prompted.
@@ -195,7 +195,7 @@ snap connect inspire:home :home
 Now run the app:
 
 ```bash run
-inspire.inspire
+inspire
 ```
 
 Enter a path in your home directory (e.g. `~/quote-strict.txt`):

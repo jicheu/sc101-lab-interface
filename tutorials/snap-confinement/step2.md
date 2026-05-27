@@ -89,7 +89,7 @@ int main(void)
     if (!curl) { fprintf(stderr, "curl_easy_init failed\n"); return 1; }
 
     struct Buffer buf = {0};
-    curl_easy_setopt(curl, CURLOPT_URL, "https://zenquotes.io/api/random");
+    curl_easy_setopt(curl, CURLOPT_URL, "https://api.quotable.io/random");
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_cb);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &buf);
     curl_easy_setopt(curl, CURLOPT_USERAGENT, "inspire-snap/1.0");
@@ -106,8 +106,8 @@ int main(void)
     }
 
     char quote[1024] = {0}, author[256] = {0};
-    extract(buf.data, "q", quote, sizeof(quote));
-    extract(buf.data, "a", author, sizeof(author));
+    extract(buf.data, "content", quote, sizeof(quote));
+    extract(buf.data, "author", author, sizeof(author));
     free(buf.data);
 
     /* Write to file */
