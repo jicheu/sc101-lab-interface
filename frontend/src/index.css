@@ -837,26 +837,43 @@ body.is-dark pre[class*='language-'] {
   margin-bottom: 2.5rem;
 }
 .sc101-course-header {
-  margin-bottom: 1.5rem;
-  padding-bottom: 0.75rem;
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
   border-bottom: 2px solid var(--sc101-border);
+  border-radius: 4px 4px 0 0;
+  transition: background-color 0.15s ease;
+}
+.sc101-course-header:hover {
+  background-color: var(--sc101-surface);
 }
 .sc101-course-title-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 0.6rem;
   margin-bottom: 0.5rem;
+}
+.sc101-course-chevron {
+  font-size: 0.75rem;
+  color: var(--sc101-orange);
+  flex-shrink: 0;
 }
 .sc101-course-title {
   font-size: 1.5rem;
   font-weight: 500;
   color: var(--sc101-orange);
   margin: 0;
+  flex: 1;
 }
 .sc101-course-pct {
   font-size: 0.9rem;
   color: var(--sc101-fg-muted);
   font-weight: 500;
+  margin-left: auto;
 }
 
 /* Section (within course) */

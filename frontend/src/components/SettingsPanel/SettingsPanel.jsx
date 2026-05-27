@@ -116,24 +116,28 @@ export default function SettingsPanel({ session, tutorialProgress }) {
 
               <div className="sc101-settings-divider" />
 
-              <div className="sc101-settings-section">
-                <div className="sc101-settings-label">Tutorial</div>
-                <div className="sc101-settings-value">
-                  {tutorialMeta?.title ?? session.tutorialId}
-                </div>
-                {totalSteps > 0 && (
-                  <>
-                    <div className="sc101-progress-track" title={`${progressPct}%`}>
-                      <div className="sc101-progress-fill" style={{ width: `${progressPct}%` }} />
+              {tutorialProgress && (
+                <>
+                  <div className="sc101-settings-section">
+                    <div className="sc101-settings-label">Tutorial</div>
+                    <div className="sc101-settings-value">
+                      {tutorialMeta?.title ?? session.tutorialId}
                     </div>
-                    <div className="sc101-settings-meta">
-                      Step {currentStep + 1} of {totalSteps} — {progressPct}%
-                    </div>
-                  </>
-                )}
-              </div>
+                    {totalSteps > 0 && (
+                      <>
+                        <div className="sc101-progress-track" title={`${progressPct}%`}>
+                          <div className="sc101-progress-fill" style={{ width: `${progressPct}%` }} />
+                        </div>
+                        <div className="sc101-settings-meta">
+                          Step {currentStep + 1} of {totalSteps} — {progressPct}%
+                        </div>
+                      </>
+                    )}
+                  </div>
 
-              <div className="sc101-settings-divider" />
+                  <div className="sc101-settings-divider" />
+                </>
+              )}
 
               <div className="sc101-settings-section">
                 <button

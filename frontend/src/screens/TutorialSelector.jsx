@@ -28,6 +28,7 @@ function ProgressBar({ pct, label, size = 'md' }) {
 export default function TutorialSelector({ session, onSelect, onLogout }) {
   const [tutorials, setTutorials] = useState([])
   const [validation, setValidation] = useState({})
+  const [collapsedCourses, setCollapsedCourses] = useState({})
   const [expanded, setExpanded]   = useState(null)
   const [loading, setLoading]     = useState(true)
   const [fetchError, setFetchError] = useState(null)
@@ -274,17 +275,20 @@ export default function TutorialSelector({ session, onSelect, onLogout }) {
         {!loading && !fetchError && courses.map((courseName) => {
           const cData = courseMap[courseName]
           const cPct = courseProgress(courseName)
+          const isCollapsed = collapsedCourses[courseName] ?? false
+          const toggle = () => setCollapsedCourses((prev) => ({ ...prev, [courseName]: !isCollapsed }))
           return (
             <div key={courseName} className="sc101-course">
-              <div className="sc101-course-header">
+              <button className="sc101-course-header" onClick={toggle} aria-expanded={!isCollapsed}>
                 <div className="sc101-course-title-row">
+                  <span className="sc101-course-chevron">{isCollapsed ? '▶' : '▼'}</span>
                   <h2 className="sc101-course-title">{courseName}</h2>
                   <span className="sc101-course-pct">{cPct}%</span>
                 </div>
                 <ProgressBar pct={cPct} size="md" />
-              </div>
+              </button>
 
-              {cData.sections.map((secName) => {
+              {!isCollapsed && cData.sections.map((secName) => {
                 const secPct = sectionProgress(courseName, secName)
                 const secList = cData.sectionMap[secName]
                 const secGroups = buildSectionGroups(secList)
