@@ -114,6 +114,7 @@ export default function TutorialSelector({ session, onSelect, onLogout }) {
   }
 
   const handleSelect = async (tut) => {
+    const v = validation[tut.id]
     if (v && !v.valid) return
     await fetch(`/api/sessions/${session.id}`, {
       method: 'PATCH',
