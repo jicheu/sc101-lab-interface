@@ -52,6 +52,13 @@ export default function TutorialPane({ tutorialId: tutorialIdProp, session, onRu
   const contentRef = useRef(null)
 
   useEffect(() => {
+    // Reset all step state when switching tutorials
+    setStepIndex(0)
+    setMeta(null)
+    setHtml('')
+    setLoading(true)
+    setError(null)
+    setShowFinish(false)
     fetch(`/api/tutorials/${tutorialId}/meta`)
       .then((r) => r.json())
       .then(setMeta)
