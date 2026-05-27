@@ -8,6 +8,7 @@ description: >
   access to system resources.
 difficulty: intermediate
 time: 45
+section: "Snapping an application for Ubuntu Core"
 tags: [snap, c, confinement, interfaces, network, home, ubuntu]
 requires:
   - hello-snap

@@ -7,13 +7,13 @@ export default function LoginScreen({ onSession }) {
   const [username, setUsername] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [deletingId, setDeletingId] = useState(null)
 
   useEffect(() => {
     fetch('/api/sessions')
       .then((r) => r.json())
       .then((list) => {
         setSessions(list)
-        // Auto-select resume tab if sessions exist
         if (list.length > 0) setTab('resume')
       })
       .catch(() => {})
@@ -46,14 +46,24 @@ export default function LoginScreen({ onSession }) {
     onSession(session)
   }
 
-  // Sort sessions newest-last-active first
+  const deleteSession = async (s, e) => {
+    e.stopPropagation()
+    if (!window.confirm(`Delete account "${s.username}"?\n\nThis will permanently remove all progress and destroy the container.`)) return
+    setDeletingId(s.id)
+    try {
+      await fetch(`/api/sessions/${s.id}`, { method: 'DELETE' })
+      setSessions((prev) => prev.filter((x) => x.id !== s.id))
+      if (localStorage.getItem('sc101_session_id') === s.id) localStorage.removeItem('sc101_session_id')
+    } catch {}
+    setDeletingId(null)
+  }
+
   const sorted = [...sessions].sort(
     (a, b) => new Date(b.lastActiveAt) - new Date(a.lastActiveAt)
   )
 
   return (
     <div className="sc101-login">
-      {/* Top bar */}
       <nav className="sc101-nav">
         <span className="sc101-nav-brand">
           <span className="sc101-nav-logo">SC</span>
@@ -62,7 +72,6 @@ export default function LoginScreen({ onSession }) {
         <SettingsPanel />
       </nav>
 
-      {/* Centred card */}
       <div className="sc101-login-body">
         <div className="sc101-login-card">
           <div className="sc101-login-card-header">
@@ -71,7 +80,6 @@ export default function LoginScreen({ onSession }) {
           </div>
 
           <div className="sc101-login-card-body">
-            {/* Tabs */}
             <div className="sc101-tabs" role="tablist">
               <button
                 role="tab"
@@ -91,14 +99,11 @@ export default function LoginScreen({ onSession }) {
               </button>
             </div>
 
-            {/* New session panel */}
             {tab === 'new' && (
               <div role="tabpanel">
                 <form onSubmit={create} className="p-form p-form--stacked">
                   <div className="p-form__group">
-                    <label className="p-form__label" htmlFor="username">
-                      Username
-                    </label>
+                    <label className="p-form__label" htmlFor="username">Username</label>
                     <input
                       id="username"
                       className="p-form__control"
@@ -111,9 +116,7 @@ export default function LoginScreen({ onSession }) {
                       autoComplete="username"
                     />
                     {error && (
-                      <p className="p-form-validation__message" style={{ color: '#c7162b' }}>
-                        {error}
-                      </p>
+                      <p className="p-form-validation__message" style={{ color: '#c7162b' }}>{error}</p>
                     )}
                   </div>
                   <button
@@ -128,46 +131,47 @@ export default function LoginScreen({ onSession }) {
               </div>
             )}
 
-            {/* Resume session panel */}
             {tab === 'resume' && (
               <div role="tabpanel">
                 {sorted.length === 0 ? (
                   <div className="sc101-empty">
                     <p>No previous sessions found.</p>
-                    <button
-                      className="p-button"
-                      onClick={() => setTab('new')}
-                    >
-                      Create one now
-                    </button>
+                    <button className="p-button" onClick={() => setTab('new')}>Create one now</button>
                   </div>
                 ) : (
                   <div className="sc101-session-list">
                     {sorted.map((s) => (
-                      <button
-                        key={s.id}
-                        className="sc101-session-item"
-                        onClick={() => resume(s)}
-                      >
-                        <div className="sc101-avatar">
-                          {s.username[0].toUpperCase()}
-                        </div>
-                        <div>
-                          <div className="sc101-session-name">{s.username}</div>
-                          <div className="sc101-session-meta">
-                            {s.tutorialId} · Step {s.currentStep + 1} ·{' '}
-                            {new Date(s.lastActiveAt).toLocaleString()}
+                      <div key={s.id} className="sc101-session-item-wrapper">
+                        <button
+                          className="sc101-session-item"
+                          onClick={() => resume(s)}
+                          disabled={deletingId === s.id}
+                        >
+                          <div className="sc101-avatar">{s.username[0].toUpperCase()}</div>
+                          <div style={{ flex: 1 }}>
+                            <div className="sc101-session-name">{s.username}</div>
+                            <div className="sc101-session-meta">
+                              {s.tutorialId ? `${s.tutorialId} · Step ${s.currentStep + 1}` : 'No tutorial started'} ·{' '}
+                              {new Date(s.lastActiveAt).toLocaleString()}
+                            </div>
                           </div>
-                        </div>
-                        <span className="sc101-session-arrow">›</span>
-                      </button>
+                          <span className="sc101-session-arrow">›</span>
+                        </button>
+                        <button
+                          className="sc101-session-delete"
+                          title={`Delete account ${s.username}`}
+                          onClick={(e) => deleteSession(s, e)}
+                          disabled={deletingId === s.id}
+                        >
+                          {deletingId === s.id ? '…' : '🗑'}
+                        </button>
+                      </div>
                     ))}
                   </div>
                 )}
               </div>
             )}
 
-            {/* SSO placeholder */}
             {/* TODO(auth): Replace username-only login with SSO (e.g. OIDC/SAML).
                 Map session.username → SSO identity subject claim. */}
             <div className="sc101-sso-note">

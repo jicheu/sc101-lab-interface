@@ -51,6 +51,18 @@ function stopContainer(name) {
   }
 }
 
+function destroyContainer(name) {
+  if (!containerExists(name)) return
+  console.log(`[lxd] Destroying container ${name}…`)
+  try {
+    if (containerRunning(name)) run(`lxc stop --force ${name}`)
+    run(`lxc delete ${name}`)
+    console.log(`[lxd] Container ${name} destroyed.`)
+  } catch (e) {
+    console.error(`[lxd] Destroy failed: ${e.message}`)
+  }
+}
+
 // Stop all sc101-* containers — called once at startup so we start clean
 function stopAllContainers() {
   try {
@@ -89,4 +101,4 @@ function onDisconnect(containerName) {
   }
 }
 
-module.exports = { ensureContainerForUser, stopAllContainers, onConnect, onDisconnect }
+module.exports = { ensureContainerForUser, stopAllContainers, destroyContainer, onConnect, onDisconnect }

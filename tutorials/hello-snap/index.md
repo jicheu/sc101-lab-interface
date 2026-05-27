@@ -6,6 +6,7 @@ description: >
   strictly-confined snap with Snapcraft, and run it on Ubuntu Core 24.
 difficulty: beginner
 time: 30
+section: "Snapping an application for Ubuntu Core"
 tags: [snap, c, ubuntu-core, lxd, snapcraft]
 
 environment:

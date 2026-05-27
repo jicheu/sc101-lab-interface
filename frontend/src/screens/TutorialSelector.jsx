@@ -13,31 +13,46 @@ const STATUS_LABEL = {
   'completed':   { text: 'Completed ✓', cls: 'sc101-badge--ok'    },
 }
 
+function ProgressBar({ pct, label, size = 'md' }) {
+  return (
+    <div className={`sc101-progress-row sc101-progress-row--${size}`}>
+      <div className="sc101-progress-track">
+        <div className="sc101-progress-fill" style={{ width: `${pct}%` }} />
+      </div>
+      <span className="sc101-progress-pct">{pct}%</span>
+      {label && <span className="sc101-settings-meta">{label}</span>}
+    </div>
+  )
+}
+
 export default function TutorialSelector({ session, onSelect, onLogout }) {
   const [tutorials, setTutorials] = useState([])
-  const [validation, setValidation] = useState({})   // { [id]: { valid, errors } }
-  const [expanded, setExpanded] = useState(null)     // id of card with errors open
-  const [loading, setLoading] = useState(true)
+  const [validation, setValidation] = useState({})
+  const [expanded, setExpanded]   = useState(null)
+  const [loading, setLoading]     = useState(true)
+  const [fetchError, setFetchError] = useState(null)
 
-  // Load tutorial list + run validation on each
   useEffect(() => {
     fetch('/api/tutorials')
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`Server error ${r.status}`)
+        return r.json()
+      })
       .then(async (list) => {
+        if (!Array.isArray(list)) throw new Error('Unexpected response from server')
         setTutorials(list)
-        // Validate all tutorials in parallel
         const results = await Promise.all(
           list.map((t) =>
             fetch(`/api/tutorials/${t.id}/validate`)
               .then((r) => r.json())
               .then((v) => [t.id, v])
-              .catch(() => [t.id, { valid: false, errors: [{ file: 'index.md', message: 'Validation request failed' }] }])
+              .catch(() => [t.id, { valid: true, errors: [] }])
           )
         )
         setValidation(Object.fromEntries(results))
         setLoading(false)
       })
-      .catch(() => setLoading(false))
+      .catch((e) => { setFetchError(e.message); setLoading(false) })
   }, [])
 
   const getProgress = (tutorialId) => {
@@ -46,28 +61,133 @@ export default function TutorialSelector({ session, onSelect, onLogout }) {
     return p
   }
 
-  // Check if all requirements are met for a tutorial
   const requirementsMet = (tut) => {
     if (!tut.requires?.length) return { met: true, unmet: [] }
-    const unmet = tut.requires.filter((rid) => {
-      const p = getProgress(rid)
-      return p.status !== 'completed'
-    })
+    const unmet = tut.requires.filter((rid) => getProgress(rid).status !== 'completed')
     return { met: unmet.length === 0, unmet }
+  }
+
+  // ── Progress calculations ────────────────────────────────────────────────
+  const totalCount = tutorials.length
+  const completedCount = tutorials.filter((t) => getProgress(t.id).status === 'completed').length
+  const globalPct = totalCount ? Math.round((completedCount / totalCount) * 100) : 0
+
+  // Group tutorials by section
+  const sections = []
+  const sectionMap = {}
+  for (const t of tutorials) {
+    const sec = t.section || 'Uncategorised'
+    if (!sectionMap[sec]) { sectionMap[sec] = []; sections.push(sec) }
+    sectionMap[sec].push(t)
+  }
+
+  const sectionProgress = (secName) => {
+    const list = sectionMap[secName] || []
+    const total = list.length
+    const done  = list.filter((t) => getProgress(t.id).status === 'completed').length
+    return total ? Math.round((done / total) * 100) : 0
   }
 
   const handleSelect = async (tut) => {
     const v = validation[tut.id]
-    if (v && !v.valid) return  // don't open broken tutorials
-
-    // Update session's active tutorial
+    if (v && !v.valid) return
     await fetch(`/api/sessions/${session.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ tutorialId: tut.id, currentStep: getProgress(tut.id).currentStep || 0 }),
     }).catch(() => {})
-
     onSelect({ ...session, tutorialId: tut.id, currentStep: getProgress(tut.id).currentStep || 0 })
+  }
+
+  // ── Tutorial card ────────────────────────────────────────────────────────
+  const TutorialCard = ({ tut }) => {
+    const v = validation[tut.id] ?? { valid: true, errors: [] }
+    const progress   = getProgress(tut.id)
+    const statusInfo = STATUS_LABEL[progress.status] ?? STATUS_LABEL['not-started']
+    const { met, unmet } = requirementsMet(tut)
+    const isBroken   = !v.valid
+    const totalSteps = tut.steps?.length ?? 0
+    const errOpen    = expanded === tut.id
+    const tutPct     = totalSteps
+      ? Math.round(((progress.currentStep + (progress.status === 'completed' ? totalSteps : 0)) / totalSteps) * 100)
+      : 0
+
+    const reqTutorials = (tut.requires || []).map((rid) => {
+      const found = tutorials.find((t) => t.id === rid)
+      return { id: rid, title: found?.title ?? rid, done: getProgress(rid).status === 'completed' }
+    })
+
+    return (
+      <div className={`sc101-tut-card${isBroken ? ' is-broken' : ''}${!met && !isBroken ? ' is-locked' : ''}`}>
+        <div className="sc101-tut-card-header">
+          <div className="sc101-tut-badges">
+            <span
+              className="sc101-badge"
+              style={{ backgroundColor: DIFFICULTY_COLOUR[tut.difficulty] ?? '#888', color: '#fff' }}
+            >{tut.difficulty ?? 'unknown'}</span>
+            <span className={`sc101-badge ${statusInfo.cls}`}>{statusInfo.text}</span>
+            {isBroken && (
+              <button
+                className="sc101-badge sc101-badge--broken"
+                onClick={() => setExpanded(errOpen ? null : tut.id)}
+              >⚠ broken {errOpen ? '▲' : '▼'}</button>
+            )}
+          </div>
+          {tut.time && <span className="sc101-tut-time">⏱ {tut.time} min</span>}
+        </div>
+
+        {isBroken && errOpen && (
+          <div className="sc101-tut-errors">
+            <div className="sc101-tut-errors-title">Validation errors</div>
+            <ul>{v.errors.map((e, i) => <li key={i}><code>{e.file}</code>: {e.message}</li>)}</ul>
+          </div>
+        )}
+
+        <div className="sc101-tut-card-body">
+          <h3 className="sc101-tut-title">{tut.title}</h3>
+          <p className="sc101-tut-desc">{tut.description}</p>
+
+          {tut.tags?.length > 0 && (
+            <div className="sc101-tut-tags">
+              {tut.tags.map((tag) => <span key={tag} className="sc101-tut-tag">{tag}</span>)}
+            </div>
+          )}
+
+          {reqTutorials.length > 0 && (
+            <div className="sc101-tut-requires">
+              <span className="sc101-tut-requires-label">Requires:</span>
+              {reqTutorials.map((r) => (
+                <span key={r.id} className={`sc101-badge sc101-badge--req${r.done ? ' is-done' : ' is-pending'}`}>
+                  {r.done ? '✓' : '○'} {r.title}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {progress.status !== 'not-started' && totalSteps > 0 && (
+            <ProgressBar
+              pct={tutPct}
+              label={progress.status === 'completed' ? null : `Step ${progress.currentStep + 1} / ${totalSteps}`}
+            />
+          )}
+        </div>
+
+        <div className="sc101-tut-card-footer">
+          {isBroken ? (
+            <span className="sc101-tut-cta-disabled">Fix errors to enable</span>
+          ) : !met ? (
+            <span className="sc101-tut-cta-disabled" title={`Complete first: ${unmet.join(', ')}`}>
+              🔒 Complete prerequisites first
+            </span>
+          ) : (
+            <button className="p-button--positive sc101-tut-cta" onClick={() => handleSelect(tut)}>
+              {progress.status === 'not-started' ? '▶ Start' :
+               progress.status === 'completed'   ? '↺ Restart' : '→ Resume'}
+            </button>
+          )}
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -86,147 +206,50 @@ export default function TutorialSelector({ session, onSelect, onLogout }) {
       <div className="sc101-selector-body">
         <div className="sc101-selector-header">
           <h1>Choose a tutorial</h1>
-          <p>
-            Hello, <strong>{session?.username}</strong>. Pick up where you left off or start something new.
-          </p>
+          <p>Hello, <strong>{session?.username}</strong>. Pick up where you left off or start something new.</p>
+
+          {!loading && !fetchError && totalCount > 0 && (
+            <div className="sc101-global-progress">
+              <span className="sc101-global-progress-label">
+                Overall progress — {completedCount} of {totalCount} tutorial{totalCount !== 1 ? 's' : ''} completed
+              </span>
+              <ProgressBar pct={globalPct} size="lg" />
+            </div>
+          )}
         </div>
 
-        {loading ? (
-          <div className="sc101-selector-empty">Loading tutorials…</div>
-        ) : tutorials.length === 0 ? (
-          <div className="sc101-selector-empty">No tutorials found in the tutorials/ folder.</div>
-        ) : (
-          <div className="sc101-tutorial-grid">
-            {tutorials.map((tut) => {
-              const v = validation[tut.id] ?? { valid: true, errors: [] }
-              const progress = getProgress(tut.id)
-              const statusInfo = STATUS_LABEL[progress.status] ?? STATUS_LABEL['not-started']
-              const { met, unmet } = requirementsMet(tut)
-              const isbroken = !v.valid
-              const totalSteps = tut.steps?.length ?? 0
-              const errOpen = expanded === tut.id
+        {loading && <div className="sc101-selector-empty">Loading tutorials…</div>}
 
-              // Find names of required tutorials
-              const reqTutorials = (tut.requires || []).map((rid) => {
-                const found = tutorials.find((t) => t.id === rid)
-                return { id: rid, title: found?.title ?? rid, done: getProgress(rid).status === 'completed' }
-              })
-
-              return (
-                <div
-                  key={tut.id}
-                  className={`sc101-tut-card${isbroken ? ' is-broken' : ''}${!met && !isbroken ? ' is-locked' : ''}`}
-                >
-                  {/* Header */}
-                  <div className="sc101-tut-card-header">
-                    <div className="sc101-tut-badges">
-                      <span
-                        className="sc101-badge"
-                        style={{ backgroundColor: DIFFICULTY_COLOUR[tut.difficulty] ?? '#888', color: '#fff' }}
-                      >
-                        {tut.difficulty ?? 'unknown'}
-                      </span>
-                      <span className={`sc101-badge ${statusInfo.cls}`}>{statusInfo.text}</span>
-                      {isbroken && (
-                        <button
-                          className="sc101-badge sc101-badge--broken"
-                          onClick={() => setExpanded(errOpen ? null : tut.id)}
-                          title="Show validation errors"
-                        >
-                          ⚠ broken {errOpen ? '▲' : '▼'}
-                        </button>
-                      )}
-                    </div>
-                    {tut.time && (
-                      <span className="sc101-tut-time">⏱ {tut.time} min</span>
-                    )}
-                  </div>
-
-                  {/* Error list (expandable) */}
-                  {isbroken && errOpen && (
-                    <div className="sc101-tut-errors">
-                      <div className="sc101-tut-errors-title">Validation errors</div>
-                      <ul>
-                        {v.errors.map((e, i) => (
-                          <li key={i}><code>{e.file}</code>: {e.message}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {/* Title & description */}
-                  <div className="sc101-tut-card-body">
-                    <h3 className="sc101-tut-title">{tut.title}</h3>
-                    <p className="sc101-tut-desc">{tut.description}</p>
-
-                    {/* Tags */}
-                    {tut.tags?.length > 0 && (
-                      <div className="sc101-tut-tags">
-                        {tut.tags.map((tag) => (
-                          <span key={tag} className="sc101-tut-tag">{tag}</span>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Dependencies */}
-                    {reqTutorials.length > 0 && (
-                      <div className="sc101-tut-requires">
-                        <span className="sc101-tut-requires-label">Requires:</span>
-                        {reqTutorials.map((r) => (
-                          <span
-                            key={r.id}
-                            className={`sc101-badge sc101-badge--req${r.done ? ' is-done' : ' is-pending'}`}
-                            title={r.done ? 'Completed' : 'Not yet completed'}
-                          >
-                            {r.done ? '✓' : '○'} {r.title}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Progress bar */}
-                    {progress.status !== 'not-started' && totalSteps > 0 && (
-                      <div className="sc101-tut-progress">
-                        <div
-                          className="sc101-progress-track"
-                          title={`Step ${progress.currentStep + 1} of ${totalSteps}`}
-                        >
-                          <div
-                            className="sc101-progress-fill"
-                            style={{ width: `${Math.round(((progress.currentStep + 1) / totalSteps) * 100)}%` }}
-                          />
-                        </div>
-                        <span className="sc101-settings-meta">
-                          Step {progress.currentStep + 1} / {totalSteps}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* CTA */}
-                  <div className="sc101-tut-card-footer">
-                    {isbroken ? (
-                      <span className="sc101-tut-cta-disabled">Fix errors to enable</span>
-                    ) : !met ? (
-                      <span className="sc101-tut-cta-disabled" title={`Complete first: ${unmet.join(', ')}`}>
-                        🔒 Complete prerequisites first
-                      </span>
-                    ) : (
-                      <button
-                        className="p-button--positive sc101-tut-cta"
-                        onClick={() => handleSelect(tut)}
-                      >
-                        {progress.status === 'not-started' ? '▶ Start' :
-                         progress.status === 'completed'   ? '↺ Restart' :
-                                                             '→ Resume'}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
+        {!loading && fetchError && (
+          <div className="sc101-selector-error">
+            <strong>Could not load tutorials</strong>
+            <p>{fetchError}</p>
+            <p>Make sure the backend server is running (<code>npm run dev:backend</code>) and try reloading.</p>
           </div>
         )}
+
+        {!loading && !fetchError && tutorials.length === 0 && (
+          <div className="sc101-selector-empty">No tutorials found in the <code>tutorials/</code> folder.</div>
+        )}
+
+        {!loading && !fetchError && sections.map((secName) => {
+          const secPct = sectionProgress(secName)
+          const secList = sectionMap[secName]
+          return (
+            <div key={secName} className="sc101-section">
+              <div className="sc101-section-header">
+                <div className="sc101-section-title-row">
+                  <h2 className="sc101-section-title">{secName}</h2>
+                  <span className="sc101-section-pct">{secPct}%</span>
+                </div>
+                <ProgressBar pct={secPct} size="sm" />
+              </div>
+              <div className="sc101-tutorial-grid">
+                {secList.map((tut) => <TutorialCard key={tut.id} tut={tut} />)}
+              </div>
+            </div>
+          )
+        })}
       </div>
     </div>
   )

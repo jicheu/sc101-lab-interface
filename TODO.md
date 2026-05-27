@@ -44,17 +44,18 @@ These steps must be completed on the host machine before running the application
 
 ## Backend
 
-- [ ] Support multiple tutorial IDs (not just `hello-snap` hardcoded in `sessions.js`)
-- [ ] Add a `DELETE /api/sessions/:id` endpoint to clean up stale sessions
+- [x] Support multiple tutorial IDs — tutorial selector screen added
+- [x] Add a `DELETE /api/sessions/:id` endpoint to clean up stale sessions + destroy container
 - [ ] Rate-limit session creation to avoid container sprawl
 
 ---
 
 ## Frontend
 
-- [ ] Add a tutorial selector on the login / session screen
+- [x] Tutorial selector screen with section grouping, progress tracking, dependency indicators
 - [ ] Show live container status (starting / running / stopped) in the terminal pane header
 - [ ] Mobile / narrow-screen layout (responsive split-pane or tabbed view)
+- [ ] **Award page** — when a user completes all tutorials in the course, show a certificate/award page they can download as a PDF. Triggered when global progress reaches 100%.
 
 ---
 

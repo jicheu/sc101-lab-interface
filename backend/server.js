@@ -7,7 +7,7 @@ const path = require('path')
 const fs = require('fs')
 const pty = require('node-pty')
 const { exec } = require('child_process')
-const { ensureContainerForUser, stopAllContainers, onConnect, onDisconnect } = require('./lxd')
+const { ensureContainerForUser, stopAllContainers, destroyContainer, onConnect, onDisconnect } = require('./lxd')
 const sessions = require('./sessions')
 
 const matter = require('gray-matter')
@@ -22,18 +22,28 @@ const TUTORIALS_DIR = path.join(__dirname, '..', 'tutorials')
 function loadTutorialMeta(tutorialId) {
   const indexPath = path.join(TUTORIALS_DIR, tutorialId, 'index.md')
   if (!fs.existsSync(indexPath)) return null
-  const { data, content } = matter(fs.readFileSync(indexPath, 'utf8'))
-  return { ...data, id: data.id || tutorialId, body: content.trim() }
+  try {
+    const { data, content } = matter(fs.readFileSync(indexPath, 'utf8'))
+    return { ...data, id: data.id || tutorialId, body: content.trim() }
+  } catch (e) {
+    console.error(`[tutorials] Failed to load ${tutorialId}: ${e.message}`)
+    return null
+  }
 }
 
 // List all tutorials that have a valid index.md
 function listTutorials() {
   if (!fs.existsSync(TUTORIALS_DIR)) return []
-  return fs.readdirSync(TUTORIALS_DIR, { withFileTypes: true })
-    .filter((d) => d.isDirectory())
-    .map((d) => loadTutorialMeta(d.name))
-    .filter(Boolean)
-    .map(({ body: _body, ...rest }) => rest) // omit body from list
+  try {
+    return fs.readdirSync(TUTORIALS_DIR, { withFileTypes: true })
+      .filter((d) => d.isDirectory())
+      .map((d) => loadTutorialMeta(d.name))
+      .filter(Boolean)
+      .map(({ body: _body, ...rest }) => rest) // omit body from list
+  } catch (e) {
+    console.error(`[tutorials] listTutorials error: ${e.message}`)
+    return []
+  }
 }
 
 // ── Express app ──────────────────────────────────────────────────────────────
@@ -72,11 +82,27 @@ app.patch('/api/sessions/:id', (req, res) => {
   res.json(s)
 })
 
+app.delete('/api/sessions/:id', (req, res) => {
+  const s = sessions.get(req.params.id)
+  if (!s) return res.status(404).json({ error: 'Session not found' })
+  sessions.remove(req.params.id)
+  // Destroy the LXD container (non-blocking — don't fail the response if lxd is unavailable)
+  try { destroyContainer(s.containerName) } catch (e) {
+    console.error(`[api] DELETE session — container destroy failed: ${e.message}`)
+  }
+  res.json({ ok: true })
+})
+
 // ── Tutorial API ──────────────────────────────────────────────────────────────
 
 // List all available tutorials
 app.get('/api/tutorials', (_req, res) => {
-  res.json(listTutorials())
+  try {
+    res.json(listTutorials())
+  } catch (e) {
+    console.error('[api] GET /api/tutorials error:', e)
+    res.status(500).json({ error: 'Failed to load tutorials' })
+  }
 })
 
 // Get metadata for a single tutorial (includes environment spec and steps list)

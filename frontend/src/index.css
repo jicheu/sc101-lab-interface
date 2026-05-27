@@ -991,3 +991,100 @@ body.is-dark pre[class*='language-'] {
   color: var(--sc101-fg-muted);
   font-style: italic;
 }
+
+/* ── Tutorial selector — section grouping ──────────────────────────────── */
+.sc101-section {
+  margin-bottom: 2.5rem;
+}
+.sc101-section-header {
+  margin-bottom: 1rem;
+}
+.sc101-section-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin-bottom: 0.4rem;
+}
+.sc101-section-title {
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: var(--sc101-fg);
+  margin: 0;
+  border-left: 3px solid var(--sc101-orange);
+  padding-left: 0.6rem;
+}
+.sc101-section-pct {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--sc101-orange);
+}
+
+/* Global progress banner */
+.sc101-global-progress {
+  margin-top: 1rem;
+  background: var(--sc101-surface);
+  border: 1px solid var(--sc101-border);
+  border-radius: 4px;
+  padding: 0.75rem 1rem;
+}
+.sc101-global-progress-label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--sc101-fg-muted);
+  margin-bottom: 0.4rem;
+}
+
+/* Progress row variants */
+.sc101-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.sc101-progress-row--lg .sc101-progress-track { height: 6px; }
+.sc101-progress-row--md .sc101-progress-track { height: 4px; }
+.sc101-progress-row--sm .sc101-progress-track { height: 3px; }
+.sc101-progress-pct {
+  white-space: nowrap;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--sc101-fg-muted);
+  min-width: 2.5rem;
+  text-align: right;
+}
+
+/* Selector error state */
+.sc101-selector-error {
+  margin-top: 2rem;
+  background: var(--sc101-surface);
+  border: 1px solid #c7162b;
+  border-radius: 4px;
+  padding: 1rem 1.25rem;
+  color: var(--sc101-fg);
+}
+.sc101-selector-error strong { color: #c7162b; }
+.sc101-selector-error p { margin: 0.25rem 0 0; font-size: 0.875rem; color: var(--sc101-fg-muted); }
+
+/* Delete account button in session list */
+.sc101-session-item-wrapper {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--sc101-border);
+}
+.sc101-session-item-wrapper .sc101-session-item {
+  flex: 1;
+  border-bottom: none;
+}
+.sc101-session-delete {
+  background: none;
+  border: none;
+  border-left: 1px solid var(--sc101-border);
+  color: var(--sc101-fg-muted);
+  cursor: pointer;
+  padding: 0 0.75rem;
+  font-size: 1rem;
+  transition: color 0.15s, background-color 0.15s;
+}
+.sc101-session-delete:hover {
+  background-color: rgba(199, 22, 43, 0.08);
+  color: #c7162b;
+}

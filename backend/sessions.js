@@ -87,4 +87,13 @@ function sanitizeContainerName(username) {
   return name
 }
 
-module.exports = { list, get, create, update, sanitizeContainerName }
+function remove(id) {
+  const sessions = load()
+  if (!sessions[id]) return null
+  const s = sessions[id]
+  delete sessions[id]
+  save(sessions)
+  return s
+}
+
+module.exports = { list, get, create, update, remove, sanitizeContainerName }
