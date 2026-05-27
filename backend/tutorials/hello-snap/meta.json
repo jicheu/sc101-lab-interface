@@ -1,0 +1,13 @@
+{
+  "id": "hello-snap",
+  "title": "Hello Snap — C App on Ubuntu Core",
+  "description": "Build a C 'hello world' program, package it as a strictly-confined snap, and run it on Ubuntu Core.",
+  "steps": [
+    { "file": "01-intro.md",          "title": "Introduction" },
+    { "file": "02-setup.md",          "title": "Set up build tools" },
+    { "file": "03-write-c.md",        "title": "Write hello.c" },
+    { "file": "04-snapcraft-yaml.md", "title": "Write snapcraft.yaml" },
+    { "file": "05-build-snap.md",     "title": "Build the snap" },
+    { "file": "06-test.md",           "title": "Install & test" }
+  ]
+}

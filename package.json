@@ -1,0 +1,10 @@
+{
+  "name": "sc101-lab-interface",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev:backend":  "npm --prefix backend start",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "build":        "npm --prefix frontend run build"
+  }
+}
