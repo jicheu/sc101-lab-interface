@@ -750,6 +750,31 @@ sc101-lab-interface/
 
 ---
 
+## Phase 31 — Course hierarchy
+
+**Goal**: Group tutorials into courses. Each course is a folder in `tutorials/`.
+
+**Changes**:
+1. **Folder structure**: `tutorials/<Course Name>/<tutorial-id>/`
+   - Created `tutorials/SC101 Lab Interface playground/` containing all 7 existing tutorials
+   - Created `tutorials/SC101 Original Labs/` (empty, for future content)
+2. **Backend** (`server.js`):
+   - `loadTutorialMeta(courseDir, tutorialId)` — now takes course dir parameter
+   - `findTutorial(tutorialId)` — searches all courses, returns `{ courseDir, meta }`
+   - `listTutorials()` — scans nested structure, adds `course` field to each tutorial
+   - All API routes updated to use `findTutorial()`
+   - Resilient: try/catch at every directory scan level, skips invalid entries
+3. **Frontend** (`TutorialSelector.jsx`):
+   - Groups by course first, then section within each course
+   - Course header with title and progress bar
+   - Updated section styling (now nested under course)
+4. **CSS** (`index.css`):
+   - `.sc101-course`, `.sc101-course-header`, `.sc101-course-title` styles
+   - Orange accent for course titles
+   - Section titles are now h3 (demoted from h2)
+
+---
+
 ## TODO (open items)
 
 - [ ] SSO integration (replace username-only login)

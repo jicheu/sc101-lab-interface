@@ -72,19 +72,33 @@ export default function TutorialSelector({ session, onSelect, onLogout }) {
   const completedCount = tutorials.filter((t) => getProgress(t.id).status === 'completed').length
   const globalPct = totalCount ? Math.round((completedCount / totalCount) * 100) : 0
 
-  // Group tutorials by section
-  const sections = []
-  const sectionMap = {}
+  // Group tutorials by course, then by section within each course
+  const courses = []
+  const courseMap = {}
   for (const t of tutorials) {
+    const courseName = t.course || 'Uncategorised'
+    if (!courseMap[courseName]) { courseMap[courseName] = { sections: [], sectionMap: {} }; courses.push(courseName) }
     const sec = t.section || 'Uncategorised'
-    if (!sectionMap[sec]) { sectionMap[sec] = []; sections.push(sec) }
-    sectionMap[sec].push(t)
+    if (!courseMap[courseName].sectionMap[sec]) {
+      courseMap[courseName].sectionMap[sec] = []
+      courseMap[courseName].sections.push(sec)
+    }
+    courseMap[courseName].sectionMap[sec].push(t)
   }
 
-  const sectionProgress = (secName) => {
-    const list = sectionMap[secName] || []
+  const courseProgress = (courseName) => {
+    const cData = courseMap[courseName]
+    if (!cData) return 0
+    const list = Object.values(cData.sectionMap).flat()
     const total = list.length
-    const done  = list.filter((t) => getProgress(t.id).status === 'completed').length
+    const done = list.filter((t) => getProgress(t.id).status === 'completed').length
+    return total ? Math.round((done / total) * 100) : 0
+  }
+
+  const sectionProgress = (courseName, secName) => {
+    const list = courseMap[courseName]?.sectionMap[secName] || []
+    const total = list.length
+    const done = list.filter((t) => getProgress(t.id).status === 'completed').length
     return total ? Math.round((done / total) * 100) : 0
   }
 
@@ -257,33 +271,47 @@ export default function TutorialSelector({ session, onSelect, onLogout }) {
           <div className="sc101-selector-empty">No tutorials found in the <code>tutorials/</code> folder.</div>
         )}
 
-        {!loading && !fetchError && sections.map((secName) => {
-          const secPct = sectionProgress(secName)
-          const secList = sectionMap[secName]
-          const secGroups = buildSectionGroups(secList)
+        {!loading && !fetchError && courses.map((courseName) => {
+          const cData = courseMap[courseName]
+          const cPct = courseProgress(courseName)
           return (
-            <div key={secName} className="sc101-section">
-              <div className="sc101-section-header">
-                <div className="sc101-section-title-row">
-                  <h2 className="sc101-section-title">{secName}</h2>
-                  <span className="sc101-section-pct">{secPct}%</span>
+            <div key={courseName} className="sc101-course">
+              <div className="sc101-course-header">
+                <div className="sc101-course-title-row">
+                  <h2 className="sc101-course-title">{courseName}</h2>
+                  <span className="sc101-course-pct">{cPct}%</span>
                 </div>
-                <ProgressBar pct={secPct} size="sm" />
+                <ProgressBar pct={cPct} size="md" />
               </div>
-              {secGroups.map((group) => (
-                <div key={group.root.id} className="sc101-tut-group">
-                  {/* Root tutorial — always its own row */}
-                  <div className="sc101-tutorial-grid sc101-tutorial-grid--root">
-                    <TutorialCard tut={group.root} />
-                  </div>
-                  {/* Dependents — side by side on the next row, visually indented */}
-                  {group.children.length > 0 && (
-                    <div className="sc101-tutorial-grid sc101-tutorial-grid--children">
-                      {group.children.map((tut) => <TutorialCard key={tut.id} tut={tut} />)}
+
+              {cData.sections.map((secName) => {
+                const secPct = sectionProgress(courseName, secName)
+                const secList = cData.sectionMap[secName]
+                const secGroups = buildSectionGroups(secList)
+                return (
+                  <div key={secName} className="sc101-section">
+                    <div className="sc101-section-header">
+                      <div className="sc101-section-title-row">
+                        <h3 className="sc101-section-title">{secName}</h3>
+                        <span className="sc101-section-pct">{secPct}%</span>
+                      </div>
+                      <ProgressBar pct={secPct} size="sm" />
                     </div>
-                  )}
-                </div>
-              ))}
+                    {secGroups.map((group) => (
+                      <div key={group.root.id} className="sc101-tut-group">
+                        <div className="sc101-tutorial-grid sc101-tutorial-grid--root">
+                          <TutorialCard tut={group.root} />
+                        </div>
+                        {group.children.length > 0 && (
+                          <div className="sc101-tutorial-grid sc101-tutorial-grid--children">
+                            {group.children.map((tut) => <TutorialCard key={tut.id} tut={tut} />)}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )
+              })}
             </div>
           )
         })}

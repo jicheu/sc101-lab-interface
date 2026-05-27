@@ -18,32 +18,74 @@ const PORT = 3001
 const TUTORIALS_DIR = path.join(__dirname, '..', 'tutorials')
 
 // Parse a tutorial's index.md and return { id, title, description,
-// difficulty, time, tags, environment, steps, body }
-function loadTutorialMeta(tutorialId) {
-  const indexPath = path.join(TUTORIALS_DIR, tutorialId, 'index.md')
+// difficulty, time, tags, environment, steps, body, course }
+function loadTutorialMeta(courseDir, tutorialId) {
+  const indexPath = path.join(TUTORIALS_DIR, courseDir, tutorialId, 'index.md')
   if (!fs.existsSync(indexPath)) return null
   try {
     const { data, content } = matter(fs.readFileSync(indexPath, 'utf8'))
-    return { ...data, id: data.id || tutorialId, body: content.trim() }
+    return { 
+      ...data, 
+      id: data.id || tutorialId, 
+      course: courseDir,
+      body: content.trim() 
+    }
   } catch (e) {
-    console.error(`[tutorials] Failed to load ${tutorialId}: ${e.message}`)
+    console.error(`[tutorials] Failed to load ${courseDir}/${tutorialId}: ${e.message}`)
     return null
   }
 }
 
-// List all tutorials that have a valid index.md
+// Find a tutorial by ID across all courses (returns { courseDir, meta })
+function findTutorial(tutorialId) {
+  if (!fs.existsSync(TUTORIALS_DIR)) return null
+  try {
+    const courses = fs.readdirSync(TUTORIALS_DIR, { withFileTypes: true })
+      .filter((d) => d.isDirectory())
+    for (const course of courses) {
+      const tutPath = path.join(TUTORIALS_DIR, course.name, tutorialId)
+      if (fs.existsSync(tutPath) && fs.statSync(tutPath).isDirectory()) {
+        const meta = loadTutorialMeta(course.name, tutorialId)
+        if (meta) return { courseDir: course.name, meta }
+      }
+    }
+  } catch (e) {
+    console.error(`[tutorials] findTutorial(${tutorialId}) error: ${e.message}`)
+  }
+  return null
+}
+
+// List all tutorials from all courses that have a valid index.md
 function listTutorials() {
   if (!fs.existsSync(TUTORIALS_DIR)) return []
+  const results = []
   try {
-    return fs.readdirSync(TUTORIALS_DIR, { withFileTypes: true })
+    const courses = fs.readdirSync(TUTORIALS_DIR, { withFileTypes: true })
       .filter((d) => d.isDirectory())
-      .map((d) => loadTutorialMeta(d.name))
-      .filter(Boolean)
-      .map(({ body: _body, ...rest }) => rest) // omit body from list
+    for (const course of courses) {
+      const courseFullPath = path.join(TUTORIALS_DIR, course.name)
+      try {
+        const tutorials = fs.readdirSync(courseFullPath, { withFileTypes: true })
+          .filter((d) => d.isDirectory())
+        for (const tut of tutorials) {
+          try {
+            const meta = loadTutorialMeta(course.name, tut.name)
+            if (meta) {
+              const { body: _body, ...rest } = meta // omit body from list
+              results.push(rest)
+            }
+          } catch (e) {
+            console.error(`[tutorials] Skipping ${course.name}/${tut.name}: ${e.message}`)
+          }
+        }
+      } catch (e) {
+        console.error(`[tutorials] Skipping course ${course.name}: ${e.message}`)
+      }
+    }
   } catch (e) {
     console.error(`[tutorials] listTutorials error: ${e.message}`)
-    return []
   }
+  return results
 }
 
 // ── Express app ──────────────────────────────────────────────────────────────
@@ -107,19 +149,20 @@ app.get('/api/tutorials', (_req, res) => {
 
 // Get metadata for a single tutorial (includes environment spec and steps list)
 app.get('/api/tutorials/:id/meta', (req, res) => {
-  const meta = loadTutorialMeta(req.params.id)
-  if (!meta) return res.status(404).json({ error: 'Tutorial not found' })
-  res.json(meta)
+  const found = findTutorial(req.params.id)
+  if (!found) return res.status(404).json({ error: 'Tutorial not found' })
+  res.json(found.meta)
 })
 
 // Validate a tutorial — checks frontmatter, required fields, step files
 app.get('/api/tutorials/:id/validate', (req, res) => {
   const errors = []
   const tutId = req.params.id
-  const dir = path.join(TUTORIALS_DIR, tutId)
+  const found = findTutorial(tutId)
 
-  if (!fs.existsSync(dir)) return res.status(404).json({ valid: false, errors: [{ file: 'index.md', message: 'Tutorial folder not found' }] })
+  if (!found) return res.status(404).json({ valid: false, errors: [{ file: 'index.md', message: 'Tutorial folder not found' }] })
 
+  const dir = path.join(TUTORIALS_DIR, found.courseDir, tutId)
   const indexPath = path.join(dir, 'index.md')
   if (!fs.existsSync(indexPath)) {
     return res.json({ valid: false, errors: [{ file: 'index.md', message: 'index.md is missing' }] })
@@ -162,8 +205,9 @@ app.get('/api/tutorials/:id/validate', (req, res) => {
 
 // Get a single step's markdown (strips frontmatter before sending)
 app.get('/api/tutorials/:id/step/:index', (req, res) => {
-  const meta = loadTutorialMeta(req.params.id)
-  if (!meta) return res.status(404).json({ error: 'Tutorial not found' })
+  const found = findTutorial(req.params.id)
+  if (!found) return res.status(404).json({ error: 'Tutorial not found' })
+  const meta = found.meta
 
   const idx = parseInt(req.params.index, 10)
   if (isNaN(idx) || idx < 0 || idx >= meta.steps.length) {
@@ -171,7 +215,7 @@ app.get('/api/tutorials/:id/step/:index', (req, res) => {
   }
 
   const stepFile = meta.steps[idx].file
-  const mdPath = path.join(TUTORIALS_DIR, req.params.id, stepFile)
+  const mdPath = path.join(TUTORIALS_DIR, found.courseDir, req.params.id, stepFile)
   if (!fs.existsSync(mdPath)) return res.status(404).json({ error: 'Step file not found' })
 
   // Strip frontmatter — only send the body to the frontend
