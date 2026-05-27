@@ -27,7 +27,7 @@ Snapcraft will pull the `core24` base, compile your C code, and assemble a `.sna
 > Official reference: https://snapcraft.io/docs/build-options
 
 ```bash run
-snapcraft --destructive-mode
+snapcraft pack --destructive-mode
 ```
 
 The build typically takes 1–3 minutes the first time (downloading the base image). You will see output like:
@@ -59,7 +59,7 @@ This shows the internal layout of the snap package: the binary, metadata, and sn
 
 ## What we learned
 
-- `snapcraft --destructive-mode` builds the snap directly in the current environment without a separate container.
+- `snapcraft pack --destructive-mode` builds the snap directly in the current environment without a separate container.
 - The output is a `.snap` file (a SquashFS archive) containing the binary, metadata, and all declared dependencies.
 - `unsquashfs -l` lets you inspect the contents of a snap without installing it.
 

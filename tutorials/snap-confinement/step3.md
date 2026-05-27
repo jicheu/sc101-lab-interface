@@ -58,7 +58,7 @@ EOF
 ### Build the snap
 
 ```bash run
-cd ~/inspire && snapcraft --destructive-mode
+cd ~/inspire && snapcraft pack --destructive-mode
 ```
 
 The build downloads `core24`, compiles the app, and bundles libcurl. This takes a couple of minutes on the first run.

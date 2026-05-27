@@ -45,7 +45,7 @@ grep -E 'confinement|grade' ~/inspire/snap/snapcraft.yaml
 Rebuild and reinstall:
 
 ```bash run
-cd ~/inspire && snapcraft --destructive-mode
+cd ~/inspire && snapcraft pack --destructive-mode
 ```
 
 ```bash run
@@ -116,7 +116,7 @@ grep -A4 'apps:' ~/inspire/snap/snapcraft.yaml
 Rebuild and reinstall:
 
 ```bash run
-cd ~/inspire && snapcraft --destructive-mode
+cd ~/inspire && snapcraft pack --destructive-mode
 ```
 
 ```bash run
@@ -175,7 +175,7 @@ grep -A6 'apps:' ~/inspire/snap/snapcraft.yaml
 Rebuild and reinstall:
 
 ```bash run
-cd ~/inspire && snapcraft --destructive-mode
+cd ~/inspire && snapcraft pack --destructive-mode
 ```
 
 ```bash run
