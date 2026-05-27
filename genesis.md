@@ -560,6 +560,37 @@ Each step follows the INSTRUCTIONS.md pattern: Objective → Concept callouts �
 
 ---
 
+## Phase 25 — Fix: use dmesg instead of journalctl for AppArmor denials
+
+**Instruction:**  
+`journalctl --no-pager -g 'apparmor.*DENIED.*inspire'` shows nothing useful.
+
+**Root cause:**  
+The `-g` flag in journalctl matches log message text, but AppArmor audit entries are structured differently across kernels and may not appear in the systemd journal at all in some container environments. The kernel ring buffer (`dmesg`) is the reliable source.
+
+**Fix:**
+
+```bash
+dmesg | grep -i 'apparmor.*DENIED' | tail -5
+```
+
+Also added a fallback:
+```bash
+journalctl -k --no-pager | grep -i apparmor | tail -5
+```
+
+Added documentation of the snap profile name format: `snap.<snap-name>.<app-name>` (e.g. `snap.inspire.inspire`), which helps students identify their snap's entries.
+
+**Files changed:**
+- `tutorials/snap-confinement/step5.md` — replaced journalctl command, added profile name explanation
+- `tutorials/snap-confinement/step3.md` — same fix for the optional devmode log check
+
+**General rule for future tutorials:** Use `dmesg | grep -i apparmor` to inspect AppArmor denials. Never rely on `journalctl -g` for kernel-level security events.
+
+**Commit:** `1c0729c` — `fix: use dmesg for AppArmor denial inspection`
+
+---
+
 ## Standing instruction (Phase 17+)
 
 > **Always update `genesis.md` after every change to the project**, no matter how small. Add a new Phase section describing: the instruction given, the implementation, any pitfalls encountered, and the commit SHA.
