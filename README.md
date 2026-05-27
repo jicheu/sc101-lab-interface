@@ -55,15 +55,17 @@ npm run dev:backend    # serves API + WebSocket; point a reverse proxy at port 3
 
 ## Tutorial authoring
 
-Tutorials live in `backend/tutorials/<id>/`.
+Tutorials live in `tutorials/<Course>/<id>/`. Each tutorial is a folder containing:
 
 ```
-backend/tutorials/hello-snap/
-├── meta.json          ← title, step list
-├── 01-intro.md
-├── 02-setup.md
+tutorials/SC101_Lab_Interface_playground/hello-snap/
+├── index.md       ← YAML frontmatter: id, title, description, steps list, environment
+├── step1.md
+├── step2.md
 └── …
 ```
+
+See [`tutorials/README.md`](tutorials/README.md) for the full format and [`tutorials/INSTRUCTIONS.md`](tutorials/INSTRUCTIONS.md) for authoring rules.
 
 ### Click-to-execute code blocks
 
@@ -77,17 +79,29 @@ gcc -o hello hello.c
 
 Clicking the button sends the command directly to the live terminal.
 
-## Included tutorial: hello-snap
+### Import a tutorial from GitHub
 
-A 6-step walkthrough that:
-1. Sets up GCC + Snapcraft in the container
-2. Writes a C "Hello World" app
-3. Defines a strictly-confined `snapcraft.yaml`
-4. Builds the snap
-5. Installs and tests it
+From the gear (⚙) menu → **Import from GitHub**, paste a repository URL and an optional course name. The backend auto-detects the format:
 
-## Phase 2 (planned)
+| Format | Detection | Action |
+|--------|-----------|--------|
+| SC101 native | `index.md` at root | Validate + install as-is |
+| KillerCoda (single) | `index.json` at root | Convert + install |
+| KillerCoda (multi) | subdirs each with `index.json` | Convert all + install |
 
-- Ubuntu Core 24 VM via `lxc launch ubuntu-core:24 sc101-core --vm`
-- Transfer and test snaps on Ubuntu Core
-- Per-session containers for multi-user support
+## AI-assisted authoring
+
+The repo ships a **`create-lab` Copilot skill** (`.github/skills/create-lab/SKILL.md`) that converts a raw lab file into a complete SC101 tutorial bundle, following `tutorials/INSTRUCTIONS.md`.
+
+- **In VS Code Copilot:** type `/create-lab` or describe the conversion and Copilot picks it up automatically.
+- **In Gemini / Claude / other AI clients:** upload `tutorials/INSTRUCTIONS.md` + the `create-lab.md` workflow file to a Gem or Project, then paste your lab file.
+
+The skill handles step splitting, atomicity checks, diff-only file modifications, official-reference enforcement, and `index.md` frontmatter generation.
+
+## Included tutorials
+
+| Course | Tutorial | Steps |
+|--------|----------|-------|
+| SC101 Lab Interface playground | hello-snap | 6 |
+| SC101 Lab Interface playground | snap-confinement | 8 |
+| SC101 Lab Interface playground | uc-basic-image / uc-user-assertion / uc-customize-image / uc-gadget-snap / snap-store-upload | skeletons |

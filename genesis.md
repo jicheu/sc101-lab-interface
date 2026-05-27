@@ -775,10 +775,45 @@ Actually — `undefined && !undefined` is `false`, so it didn't early-return. Th
 
 ---
 
+## Phase 35 — AI authoring tooling: create-lab skill + Gemini bundle
+
+**Instruction:**  
+Package the tutorial authoring knowledge so any AI agent — not just VS Code Copilot — can create a properly-structured SC101 tutorial from a raw lab file without additional prompting.
+
+**Deliverables:**
+
+### 1 — VS Code Copilot skill (`.github/skills/create-lab/SKILL.md`)
+A workspace skill that Copilot loads on demand when asked to convert a lab into a tutorial.  
+- Frontmatter: `name: create-lab`, keyword-rich `description` for auto-discovery, `argument-hint` for slash-command UI  
+- Body: when-to-use triggers, 6-step workflow (read INSTRUCTIONS.md → extract → split → create → apply rules → validate)  
+- Output expectations: complete `tutorials/<id>/` bundle, atomic steps, beginner-safe writing  
+
+Skill is discoverable via `/create-lab` or automatically when the agent sees "convert a lab" / "tutorial bundle" / "create lab" in the request.
+
+**File:** `.github/skills/create-lab/SKILL.md`  
+**Commit:** `f91eca4` — `docs: add create-lab skill`
+
+### 2 — Gemini (and generic AI) bundle
+Two Markdown files uploadable to Gemini Gems, Claude Projects, or any AI client that accepts uploaded documents:
+- `create-lab.md` — the workflow instructions adapted from `SKILL.md` (Copilot frontmatter stripped, references updated to `instructions.md`)
+- `instructions.md` — verbatim copy of `tutorials/INSTRUCTIONS.md`
+
+Together they constitute a self-contained context bundle: upload both files to an AI chat, then paste a raw lab file and ask it to "create the tutorial bundle".
+
+**Location:** `~/.copilot/session-state/<session>/gemini-bundle/` (session artifact, not committed)
+
+**General rule for future tooling:** Keep the Copilot `SKILL.md` as the canonical source; derive platform-specific bundles from it by stripping Copilot frontmatter and adjusting inter-file references.
+
+---
+
 ## Current project structure
 
 ```
 sc101-lab-interface/
+├── .github/
+│   └── skills/
+│       └── create-lab/
+│           └── SKILL.md          # Copilot skill: convert lab → tutorial bundle
 ├── backend/
 │   ├── data/sessions.json        # Runtime session store
 │   ├── lxd.js                    # Container lifecycle (spawnSync arg-array)
@@ -799,10 +834,10 @@ sc101-lab-interface/
 │           ├── LoginScreen.jsx   # New/resume/delete session; shows all sessions
 │           └── TutorialSelector.jsx  # Courses → sections → tree layout, progress, deps
 ├── tutorials/
-│   ├── INSTRUCTIONS.md
+│   ├── INSTRUCTIONS.md           # Authoritative tutorial authoring rules
 │   ├── SC101_Lab_Interface_playground/
 │   │   ├── hello-snap/           # Tutorial 1: Hello Snap C app (6 steps)
-│   │   ├── snap-confinement/     # Tutorial 2: Confinement (4 steps)
+│   │   ├── snap-confinement/     # Tutorial 2: Confinement (8 steps)
 │   │   ├── uc-basic-image/       # Skeleton: Basic UC image
 │   │   ├── uc-user-assertion/    # Skeleton: User assertion
 │   │   ├── uc-customize-image/   # Skeleton: Customize image
