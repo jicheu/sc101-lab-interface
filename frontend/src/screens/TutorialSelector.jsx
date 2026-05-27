@@ -25,11 +25,10 @@ function ProgressBar({ pct, label, size = 'md' }) {
   )
 }
 
-export default function TutorialSelector({ session, onSelect, onLogout }) {
+export default function TutorialSelector({ session, onSelect, onLogout, activeTutorialId }) {
   const [tutorials, setTutorials] = useState([])
   const [validation, setValidation] = useState({})
   const [collapsedCourses, setCollapsedCourses] = useState({})
-  const [expanded, setExpanded]   = useState(null)
   const [loading, setLoading]     = useState(true)
   const [fetchError, setFetchError] = useState(null)
 
@@ -42,6 +41,16 @@ export default function TutorialSelector({ session, onSelect, onLogout }) {
       .then(async (list) => {
         if (!Array.isArray(list)) throw new Error('Unexpected response from server')
         setTutorials(list)
+
+        // Build initial collapsed state: all folded except the course of the active tutorial
+        const activeCourse = activeTutorialId
+          ? list.find((t) => t.id === activeTutorialId)?.course ?? null
+          : null
+        const courseNames = [...new Set(list.map((t) => t.course))]
+        const initial = {}
+        for (const c of courseNames) initial[c] = (c !== activeCourse)
+        setCollapsedCourses(initial)
+
         const results = await Promise.all(
           list.map((t) =>
             fetch(`/api/tutorials/${t.id}/validate`)

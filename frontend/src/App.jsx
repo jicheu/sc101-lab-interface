@@ -95,6 +95,7 @@ export default function App() {
         session={session}
         onSelect={handleTutorialSelect}
         onLogout={handleLogout}
+        activeTutorialId={activeTutorialId}
       />
     )
   }
