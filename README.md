@@ -21,10 +21,52 @@ A KillerCoda-style interactive learning platform with a live terminal powered by
 | Emulation | LXD (Ubuntu 24.04 container) |
 | Tutorial format | Markdown with `run` code-block tags |
 
-## Prerequisites
+### Build tools (required for node-pty)
 
-- LXD 6+ installed and initialised (`lxd init --auto`)
-- Node.js 18+
+`node-pty` compiles a native C++ addon — build tools must be present before running `npm install`:
+
+```bash
+sudo apt install -y build-essential python3
+```
+
+### LXD 6+
+
+```bash
+sudo snap install lxd
+sudo lxd init --auto
+# add yourself to the lxd group, then log out/in (or `newgrp lxd`)
+sudo usermod -aG lxd "$USER"
+newgrp lxd
+```
+
+### Node.js (LTS) via nvm
+
+```bash
+# 1. install nvm (writes to ~/.bashrc or ~/.zshrc automatically)
+curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+
+# 2. load nvm into the CURRENT shell (no need to restart your terminal)
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+# 3. install the latest LTS Node (ships with an up-to-date npm)
+nvm install --lts
+nvm use --lts
+
+# 4. verify
+node -v   # e.g. v24.x
+npm  -v   # e.g. 11.x
+```
+
+## Installation
+
+```bash
+git clone https://github.com/jicheu/sc101-lab-interface.git
+cd sc101-lab-interface
+npm --prefix backend  install
+npm --prefix backend  rebuild   # compiles the node-pty native addon
+npm --prefix frontend install
+```
 
 ## Development
 

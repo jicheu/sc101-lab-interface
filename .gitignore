@@ -4,6 +4,10 @@ dist/
 *.log
 backend/data/sessions.json
 
+# Local import folders
+tutorials/SC101_Original_Labs/
+tutorials/Killercoda_import/
+
 # Vim swap files
 *.swp
 *.swo
