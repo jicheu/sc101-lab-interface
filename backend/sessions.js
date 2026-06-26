@@ -44,7 +44,8 @@ function list() {
 }
 
 function get(id) {
-  return load()[id] || null
+  const session = load()[id]
+  return session ? deduplicateParticipants(session) : null
 }
 
 function generateJoinCode() {
@@ -176,8 +177,8 @@ function join(id, { username, role = 'student' }) {
   const participant = {
     username,
     role,
-    // Teachers can write by default, students follow session settings
-    canWrite: role === 'teacher' ? true : (s.settings?.allowStudentWrite || false),
+    // Teachers join read-only by default (can enable write mode), students follow session settings
+    canWrite: s.settings?.allowStudentWrite || false,
     joinedAt: now
   }
 
