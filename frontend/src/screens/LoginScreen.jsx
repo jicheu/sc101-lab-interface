@@ -4,9 +4,9 @@ import SettingsPanel from '../components/SettingsPanel/SettingsPanel.jsx'
 export default function LoginScreen({ onSession }) {
   const [tab, setTab] = useState('new')
   const [sessions, setSessions] = useState([])
+  const [teacherSessions, setTeacherSessions] = useState([])
   const [savedId] = useState(() => localStorage.getItem('sc101_session_id'))
   const [username, setUsername] = useState('')
-  const [isTeacher, setIsTeacher] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [deletingId, setDeletingId] = useState(null)
@@ -17,15 +17,32 @@ export default function LoginScreen({ onSession }) {
       .then((r) => r.ok ? r.json() : [])
       .then((list) => {
         if (!list.length) return
-        setSessions(list)
-        // Auto-switch to resume tab if we have a saved session or any sessions exist
-        if (saved && list.some((s) => s.id === saved)) setTab('resume')
-        else if (list.length > 0) setTab('resume')
+        
+        // Split sessions into teacher and regular
+        const regular = list.filter(s => !s.username?.toLowerCase().includes('teacher'))
+        const teachers = list.filter(s => s.username?.toLowerCase().includes('teacher'))
+        
+        setSessions(regular)
+        setTeacherSessions(teachers)
+        
+        // Auto-switch to appropriate tab
+        if (saved) {
+          const savedSession = list.find(s => s.id === saved)
+          if (savedSession?.username?.toLowerCase().includes('teacher')) {
+            setTab('teacher')
+          } else if (savedSession) {
+            setTab('resume')
+          }
+        } else if (teachers.length > 0 && regular.length === 0) {
+          setTab('teacher')
+        } else if (regular.length > 0) {
+          setTab('resume')
+        }
       })
       .catch(() => {})
   }, [])
 
-  const create = async (e) => {
+  const create = async (e, asTeacher = false) => {
     e.preventDefault()
     if (!username.trim()) return
     setLoading(true)
@@ -41,11 +58,28 @@ export default function LoginScreen({ onSession }) {
       if (!res.ok) throw new Error(data.error || `Server error ${res.status}`)
       localStorage.setItem('sc101_session_id', data.id)
       // Add isTeacher flag to session data
-      onSession({ ...data, isTeacher })
+      onSession({ ...data, isTeacher: asTeacher })
     } catch (err) {
       setError(err.message)
       setLoading(false)
     }
+  }
+
+  const resumeTeacher = (session) => {
+    localStorage.setItem('sc101_session_id', session.id)
+    onSession({ ...session, isTeacher: true })
+  }
+
+  const deleteTeacherSession = async (s, e) => {
+    e.stopPropagation()
+    if (!window.confirm(`Delete teacher session "${s.username}"?\n\nThis will permanently remove the session.`)) return
+    setDeletingId(s.id)
+    try {
+      await fetch(`/api/sessions/${s.id}`, { method: 'DELETE' })
+      setTeacherSessions((prev) => prev.filter((x) => x.id !== s.id))
+      if (localStorage.getItem('sc101_session_id') === s.id) localStorage.removeItem('sc101_session_id')
+    } catch {}
+    setDeletingId(null)
   }
 
   const resume = (session) => {
@@ -96,7 +130,7 @@ export default function LoginScreen({ onSession }) {
                 className={`sc101-tab${tab === 'new' ? ' is-active' : ''}`}
                 onClick={() => setTab('new')}
               >
-                New session
+                New
               </button>
               <button
                 role="tab"
@@ -104,13 +138,21 @@ export default function LoginScreen({ onSession }) {
                 className={`sc101-tab${tab === 'resume' ? ' is-active' : ''}`}
                 onClick={() => setTab('resume')}
               >
-                Resume session {sessions.length > 0 && `(${sessions.length})`}
+                Resume {sessions.length > 0 && `(${sessions.length})`}
+              </button>
+              <button
+                role="tab"
+                aria-selected={tab === 'teacher'}
+                className={`sc101-tab${tab === 'teacher' ? ' is-active' : ''}`}
+                onClick={() => setTab('teacher')}
+              >
+                👑 Teacher {teacherSessions.length > 0 && `(${teacherSessions.length})`}
               </button>
             </div>
 
             {tab === 'new' && (
               <div role="tabpanel">
-                <form onSubmit={create} className="p-form p-form--stacked">
+                <form onSubmit={(e) => create(e, false)} className="p-form p-form--stacked">
                   <div className="p-form__group">
                     <label className="p-form__label" htmlFor="username">Username</label>
                     <input
@@ -129,31 +171,13 @@ export default function LoginScreen({ onSession }) {
                     )}
                   </div>
                   
-                  <div style={{ marginBottom: '1rem' }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.9rem' }}>
-                      <input
-                        type="checkbox"
-                        checked={isTeacher}
-                        onChange={(e) => setIsTeacher(e.target.checked)}
-                        disabled={loading}
-                        style={{ cursor: 'pointer', width: '16px', height: '16px' }}
-                      />
-                      <span>I'm a teacher (join student sessions)</span>
-                    </label>
-                    {isTeacher && (
-                      <p style={{ fontSize: '0.8rem', color: 'var(--sc101-fg-muted)', margin: '0.25rem 0 0 1.5rem' }}>
-                        You'll see a dashboard of active student sessions
-                      </p>
-                    )}
-                  </div>
-                  
                   <button
                     type="submit"
                     className={`p-button--positive${loading ? ' is-processing' : ''}`}
                     disabled={loading || !username.trim()}
                     style={{ width: '100%', justifyContent: 'center' }}
                   >
-                    {loading ? 'Starting…' : isTeacher ? 'Open Teacher Dashboard' : 'Start session'}
+                    {loading ? 'Starting…' : 'Start session'}
                   </button>
                 </form>
               </div>
@@ -189,6 +213,72 @@ export default function LoginScreen({ onSession }) {
                           className="sc101-session-delete"
                           title={`Delete account ${s.username}`}
                           onClick={(e) => deleteSession(s, e)}
+                          disabled={deletingId === s.id}
+                        >
+                          {deletingId === s.id ? '…' : '🗑'}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {tab === 'teacher' && (
+              <div role="tabpanel">
+                {teacherSessions.length === 0 ? (
+                  <div className="sc101-empty">
+                    <p>👑 No teacher sessions found.</p>
+                    <form onSubmit={(e) => create(e, true)} className="p-form p-form--stacked" style={{ maxWidth: '320px', margin: '1.5rem auto 0' }}>
+                      <div className="p-form__group">
+                        <label className="p-form__label" htmlFor="teacher-username">Teacher Username</label>
+                        <input
+                          id="teacher-username"
+                          className="p-form__control"
+                          type="text"
+                          placeholder="e.g. Mr. Smith"
+                          value={username}
+                          onChange={(e) => setUsername(e.target.value)}
+                          disabled={loading}
+                        />
+                      </div>
+                      <button
+                        type="submit"
+                        className={`p-button--positive${loading ? ' is-processing' : ''}`}
+                        disabled={loading || !username.trim()}
+                        style={{ width: '100%', justifyContent: 'center' }}
+                      >
+                        {loading ? 'Starting…' : 'Create Teacher Session'}
+                      </button>
+                    </form>
+                  </div>
+                ) : (
+                  <div className="sc101-session-list">
+                    {teacherSessions.sort((a, b) => new Date(b.lastActiveAt) - new Date(a.lastActiveAt)).map((s) => (
+                      <div key={s.id} className="sc101-session-item-wrapper">
+                        <button
+                          className={`sc101-session-item${s.id === savedId ? ' is-saved' : ''}`}
+                          onClick={() => resumeTeacher(s)}
+                          disabled={deletingId === s.id}
+                        >
+                          <div className="sc101-avatar" style={{ background: 'var(--sc101-orange)' }}>
+                            {s.username?.[0]?.toUpperCase() ?? '👑'}
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <div className="sc101-session-name">
+                              👑 {s.username}
+                              {s.id === savedId && <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', color: 'var(--sc101-accent)' }}>← last used</span>}
+                            </div>
+                            <div className="sc101-session-meta">
+                              Teacher Dashboard · Last active {new Date(s.lastActiveAt).toLocaleString()}
+                            </div>
+                          </div>
+                          <span className="sc101-session-arrow">›</span>
+                        </button>
+                        <button
+                          className="sc101-session-delete"
+                          title={`Delete teacher session ${s.username}`}
+                          onClick={(e) => deleteTeacherSession(s, e)}
                           disabled={deletingId === s.id}
                         >
                           {deletingId === s.id ? '…' : '🗑'}
