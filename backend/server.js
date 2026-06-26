@@ -812,7 +812,8 @@ wss.on('connection', async (ws, req) => {
   const isOwner = session.owner?.username === username
   const participant = session.participants?.find(p => p.username === username)
   const role = isOwner ? (session.owner?.role || 'teacher') : (participant?.role || 'viewer')
-  const canWrite = isOwner || (participant?.canWrite ?? (role === 'teacher' || !session.owner))
+  // Respect the canWrite flag from session data - no fallback to role
+  const canWrite = isOwner || (participant?.canWrite ?? false)
 
   console.log(`[ws] ${username || session.username} (${role}, write=${canWrite}) → ${containerName}`)
 
