@@ -37,6 +37,17 @@ for (const id in sessions) {
     sessions[id].participants = []
   }
   
+  // Set owner if missing (for backwards compatibility)
+  if (!sessions[id].owner && sessions[id].username) {
+    sessions[id].owner = {
+      username: sessions[id].username,
+      role: 'student',
+      connectedAt: sessions[id].createdAt || new Date().toISOString()
+    }
+    console.log(`Set owner for session ${id}: ${sessions[id].username}`)
+    cleaned++
+  }
+  
   const before = sessions[id].participants.length
   sessions[id] = deduplicateParticipants(sessions[id])
   const after = sessions[id].participants.length

@@ -63,12 +63,12 @@ function create({ username, tutorialId = null }) {
     tutorialId,          // active tutorial (null until selected)
     currentStep: 0,
     progress: {},        // { [tutorialId]: { status, currentStep } }
-    // Multi-user support (optional fields for backwards compatibility)
-    owner: null,         // { username, role: 'teacher', connectedAt }
+    // Multi-user support: set owner for regular sessions too
+    owner: { username, role: 'student', connectedAt: now },
     participants: [],    // [{ username, role, canWrite, joinedAt }]
     joinCode: null,      // For students to join
     settings: {
-      allowStudentWrite: false,  // Default: students read-only
+      allowStudentWrite: false,
       maxParticipants: 20
     },
     createdAt: now, lastActiveAt: now
