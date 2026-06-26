@@ -6,6 +6,7 @@ export default function LoginScreen({ onSession }) {
   const [sessions, setSessions] = useState([])
   const [savedId] = useState(() => localStorage.getItem('sc101_session_id'))
   const [username, setUsername] = useState('')
+  const [isTeacher, setIsTeacher] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [deletingId, setDeletingId] = useState(null)
@@ -39,7 +40,8 @@ export default function LoginScreen({ onSession }) {
       try { data = await res.json() } catch { data = {} }
       if (!res.ok) throw new Error(data.error || `Server error ${res.status}`)
       localStorage.setItem('sc101_session_id', data.id)
-      onSession(data)
+      // Add isTeacher flag to session data
+      onSession({ ...data, isTeacher })
     } catch (err) {
       setError(err.message)
       setLoading(false)
@@ -126,13 +128,32 @@ export default function LoginScreen({ onSession }) {
                       <p className="p-form-validation__message" style={{ color: '#c7162b' }}>{error}</p>
                     )}
                   </div>
+                  
+                  <div style={{ marginBottom: '1rem' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.9rem' }}>
+                      <input
+                        type="checkbox"
+                        checked={isTeacher}
+                        onChange={(e) => setIsTeacher(e.target.checked)}
+                        disabled={loading}
+                        style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                      />
+                      <span>I'm a teacher (join student sessions)</span>
+                    </label>
+                    {isTeacher && (
+                      <p style={{ fontSize: '0.8rem', color: 'var(--sc101-fg-muted)', margin: '0.25rem 0 0 1.5rem' }}>
+                        You'll see a dashboard of active student sessions
+                      </p>
+                    )}
+                  </div>
+                  
                   <button
                     type="submit"
                     className={`p-button--positive${loading ? ' is-processing' : ''}`}
                     disabled={loading || !username.trim()}
                     style={{ width: '100%', justifyContent: 'center' }}
                   >
-                    {loading ? 'Starting…' : 'Start session'}
+                    {loading ? 'Starting…' : isTeacher ? 'Open Teacher Dashboard' : 'Start session'}
                   </button>
                 </form>
               </div>

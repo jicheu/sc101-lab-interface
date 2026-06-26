@@ -1,6 +1,7 @@
 import { useRef, useCallback, useState, useEffect } from 'react'
 import LoginScreen from './screens/LoginScreen.jsx'
 import TutorialSelector from './screens/TutorialSelector.jsx'
+import TeacherDashboard from './screens/TeacherDashboard.jsx'
 import TutorialPane from './components/TutorialPane/TutorialPane.jsx'
 import TerminalPane from './components/TerminalPane/TerminalPane.jsx'
 import SettingsPanel from './components/SettingsPanel/SettingsPanel.jsx'
@@ -96,6 +97,21 @@ export default function App() {
 
   if (!session) return <LoginScreen onSession={(s) => { setSession(s) }} />
 
+  // Teacher mode: Show dashboard instead of selector
+  if (session.isTeacher && !activeTutorialId) {
+    return (
+      <TeacherDashboard
+        teacherSession={session}
+        onJoinSession={(joinedSession) => {
+          setSession(joinedSession)
+          setActiveTutorialId(joinedSession.tutorialId)
+        }}
+        onLogout={handleLogout}
+      />
+    )
+  }
+
+  // Regular student mode: Show tutorial selector
   if (!activeTutorialId) {
     return (
       <TutorialSelector
@@ -116,7 +132,7 @@ export default function App() {
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <button onClick={handleBackToSelector} className="sc101-nav-text-btn">
-            ← Tutorials
+            {session.isTeacher ? '← Back' : '← Tutorials'}
           </button>
           <SettingsPanel session={session} tutorialProgress={tutorialProgress} />
           <button onClick={handleLogout} className="sc101-nav-text-btn">⎋ Exit</button>
