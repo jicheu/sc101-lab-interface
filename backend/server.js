@@ -205,6 +205,10 @@ app.patch('/api/sessions/:id/participants/:username/permissions', (req, res) => 
     const result = sessions.updatePermissions(req.params.id, req.params.username, { canWrite })
     if (!result) return res.status(404).json({ error: 'Session or participant not found' })
     if (result.error) return res.status(400).json(result)
+    
+    // Broadcast permission change to all WebSocket connections
+    broadcastPresence(result.containerName)
+    
     res.json(result)
   } catch (err) {
     console.error('[api] PATCH /api/sessions/:id/participants/:username/permissions error:', err)
@@ -774,6 +778,16 @@ function broadcastPresence(containerName) {
   const shared = sharedTerminals.get(containerName)
   if (!shared) return
 
+  // Update connection states from session data
+  const session = sessions.list().find(s => s.containerName === containerName)
+  if (session) {
+    for (const conn of shared.connections) {
+      const participant = session.participants?.find(p => p.username === conn.username)
+      const isOwner = session.owner?.username === conn.username
+      conn.canWrite = isOwner || (participant?.canWrite ?? false)
+    }
+  }
+
   const participants = Array.from(shared.connections).map(c => ({
     username: c.username,
     role: c.role,
@@ -881,8 +895,9 @@ wss.on('connection', async (ws, req) => {
     try { msg = JSON.parse(raw) } catch { return }
 
     if (msg.type === 'input') {
-      // Permission check
-      if (!canWrite) {
+      // Permission check - look up current connection state
+      const currentConn = Array.from(shared.connections).find(c => c.ws === ws)
+      if (!currentConn || !currentConn.canWrite) {
         ws.send(JSON.stringify({
           type: 'error',
           message: 'You do not have permission to type in this terminal'
