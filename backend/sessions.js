@@ -18,8 +18,29 @@ function save(sessions) {
   fs.renameSync(tmpFile, DATA_FILE)
 }
 
+// Clean up duplicate participants from a session
+function deduplicateParticipants(session) {
+  if (!session.participants || session.participants.length === 0) return session
+  
+  // Keep only the most recent entry for each username
+  const seen = new Map()
+  for (const p of session.participants) {
+    const existing = seen.get(p.username)
+    if (!existing || new Date(p.joinedAt) > new Date(existing.joinedAt)) {
+      seen.set(p.username, p)
+    }
+  }
+  
+  return {
+    ...session,
+    participants: Array.from(seen.values())
+  }
+}
+
 function list() {
-  return Object.values(load())
+  const sessions = load()
+  // Clean up duplicates on load
+  return Object.values(sessions).map(deduplicateParticipants)
 }
 
 function get(id) {
@@ -155,7 +176,8 @@ function join(id, { username, role = 'student' }) {
   const participant = {
     username,
     role,
-    canWrite: s.settings?.allowStudentWrite || false,
+    // Teachers can write by default, students follow session settings
+    canWrite: role === 'teacher' ? true : (s.settings?.allowStudentWrite || false),
     joinedAt: now
   }
 
