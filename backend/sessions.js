@@ -140,12 +140,14 @@ function join(id, { username, role = 'student' }) {
   if (!sessions[id]) return { error: 'Session not found' }
   const s = sessions[id]
 
-  // Check if already joined
+  // Check if it's the owner
   if (s.owner?.username === username) return { error: 'You are the owner of this session' }
-  if (s.participants.some(p => p.username === username)) return { error: 'Already joined' }
 
-  // Check max participants
-  if (s.participants.length >= (s.settings?.maxParticipants || 20)) {
+  // If already joined, remove old entry (rejoin scenario)
+  let participants = s.participants.filter(p => p.username !== username)
+  
+  // Check max participants (only for new joins)
+  if (participants.length >= (s.settings?.maxParticipants || 20)) {
     return { error: 'Session is full' }
   }
 
@@ -159,7 +161,7 @@ function join(id, { username, role = 'student' }) {
 
   sessions[id] = {
     ...s,
-    participants: [...s.participants, participant],
+    participants: [...participants, participant],
     lastActiveAt: now
   }
   save(sessions)
