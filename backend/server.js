@@ -153,6 +153,79 @@ app.post('/api/sessions', (req, res) => {
   }
 })
 
+// Create a teaching session (multi-user enabled)
+app.post('/api/sessions/teaching', (req, res) => {
+  try {
+    const { username, tutorialId, allowStudentWrite } = req.body || {}
+    if (!username || !username.trim()) return res.status(400).json({ error: 'username required' })
+    const session = sessions.createTeaching({ 
+      username: username.trim(), 
+      tutorialId,
+      allowStudentWrite: !!allowStudentWrite
+    })
+    res.status(201).json(session)
+  } catch (err) {
+    console.error('[api] POST /api/sessions/teaching error:', err)
+    res.status(500).json({ error: err.message || 'Internal server error' })
+  }
+})
+
+// Join a session as a participant
+app.post('/api/sessions/:id/join', (req, res) => {
+  try {
+    const { username, role } = req.body || {}
+    if (!username || !username.trim()) return res.status(400).json({ error: 'username required' })
+    const result = sessions.join(req.params.id, { username: username.trim(), role: role || 'student' })
+    if (result.error) return res.status(400).json(result)
+    res.status(200).json(result)
+  } catch (err) {
+    console.error('[api] POST /api/sessions/:id/join error:', err)
+    res.status(500).json({ error: err.message || 'Internal server error' })
+  }
+})
+
+// Leave a session
+app.post('/api/sessions/:id/leave', (req, res) => {
+  try {
+    const { username } = req.body || {}
+    if (!username || !username.trim()) return res.status(400).json({ error: 'username required' })
+    const session = sessions.leave(req.params.id, username.trim())
+    if (!session) return res.status(404).json({ error: 'Session not found' })
+    res.json(session)
+  } catch (err) {
+    console.error('[api] POST /api/sessions/:id/leave error:', err)
+    res.status(500).json({ error: err.message || 'Internal server error' })
+  }
+})
+
+// Update participant permissions (teacher only)
+app.patch('/api/sessions/:id/participants/:username/permissions', (req, res) => {
+  try {
+    const { canWrite } = req.body || {}
+    const result = sessions.updatePermissions(req.params.id, req.params.username, { canWrite })
+    if (!result) return res.status(404).json({ error: 'Session or participant not found' })
+    if (result.error) return res.status(400).json(result)
+    res.json(result)
+  } catch (err) {
+    console.error('[api] PATCH /api/sessions/:id/participants/:username/permissions error:', err)
+    res.status(500).json({ error: err.message || 'Internal server error' })
+  }
+})
+
+// Get session by join code
+app.get('/api/sessions/lookup', (req, res) => {
+  try {
+    const { joinCode } = req.query
+    if (!joinCode) return res.status(400).json({ error: 'joinCode required' })
+    const session = sessions.getByJoinCode(joinCode)
+    if (!session) return res.status(404).json({ error: 'Session not found' })
+    res.json(session)
+  } catch (err) {
+    console.error('[api] GET /api/sessions/lookup error:', err)
+    res.status(500).json({ error: err.message || 'Internal server error' })
+  }
+})
+
 app.patch('/api/sessions/:id', (req, res) => {
   const { currentStep, tutorialId, totalSteps, status } = req.body || {}
   const s = sessions.update(req.params.id, { currentStep, tutorialId, totalSteps, status })
@@ -694,13 +767,38 @@ app.get('/api/sessions/:id/export', (req, res) => {
 
 const server = http.createServer(app)
 
-// Path: /ws/terminal/:sessionId  — we parse sessionId from the URL
+// Shared terminal management: Map containerName → { pty, connections: Set, resizeState }
+const sharedTerminals = new Map()
+
+function broadcastPresence(containerName) {
+  const shared = sharedTerminals.get(containerName)
+  if (!shared) return
+
+  const participants = Array.from(shared.connections).map(c => ({
+    username: c.username,
+    role: c.role,
+    canWrite: c.canWrite
+  }))
+
+  const message = JSON.stringify({ type: 'presence', participants })
+
+  for (const conn of shared.connections) {
+    if (conn.ws.readyState === WebSocket.OPEN) {
+      conn.ws.send(message)
+    }
+  }
+}
+
+const { IDLE_STOP_DELAY } = require('./lxd')
+
+// Path: /ws/terminal  — Extract session & username from query params
 const wss = new WebSocketServer({ server, path: '/ws/terminal' })
 
 wss.on('connection', async (ws, req) => {
-  // Extract sessionId from URL query param: /ws/terminal?session=<id>
+  // Extract sessionId and username from URL query params
   const url = new URL(req.url, `http://localhost`)
   const sessionId = url.searchParams.get('session')
+  const username = url.searchParams.get('username')
 
   const session = sessionId ? sessions.get(sessionId) : null
   if (!session) {
@@ -709,49 +807,118 @@ wss.on('connection', async (ws, req) => {
   }
 
   const { containerName } = session
-  console.log(`[ws] ${session.username} → container ${containerName}`)
 
-  // Ensure the container is running
-  try {
-    await ensureContainerForUser(containerName)
-  } catch (err) {
-    console.error(`[ws] Failed to start container: ${err.message}`)
-    ws.close(4002, 'Container failed to start')
-    return
+  // Determine role and permissions
+  const isOwner = session.owner?.username === username
+  const participant = session.participants?.find(p => p.username === username)
+  const role = isOwner ? (session.owner?.role || 'teacher') : (participant?.role || 'viewer')
+  const canWrite = isOwner || (participant?.canWrite ?? (role === 'teacher' || !session.owner))
+
+  console.log(`[ws] ${username || session.username} (${role}, write=${canWrite}) → ${containerName}`)
+
+  // Get or create shared PTY for this container
+  let shared = sharedTerminals.get(containerName)
+  
+  if (!shared) {
+    // Ensure container is running
+    try {
+      await ensureContainerForUser(containerName)
+    } catch (err) {
+      console.error(`[ws] Failed to start container: ${err.message}`)
+      ws.close(4002, 'Container failed to start')
+      return
+    }
+
+    // Spawn PTY once for this container
+    const shell = pty.spawn('lxc', ['exec', containerName, '--', 'bash', '--login'], {
+      name: 'xterm-256color',
+      cols: 80,
+      rows: 24,
+      env: { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor' },
+    })
+
+    shared = {
+      pty: shell,
+      connections: new Set(),
+      resizeState: { cols: 80, rows: 24 }
+    }
+    sharedTerminals.set(containerName, shared)
+
+    // Broadcast PTY output to ALL connected clients
+    shell.onData((data) => {
+      for (const conn of shared.connections) {
+        if (conn.ws.readyState === WebSocket.OPEN) {
+          conn.ws.send(data)
+        }
+      }
+    })
+
+    shell.onExit(({ exitCode }) => {
+      console.log(`[ws] PTY for ${containerName} exited (${exitCode})`)
+      sharedTerminals.delete(containerName)
+      // Close all connections
+      for (const conn of shared.connections) {
+        if (conn.ws.readyState === WebSocket.OPEN) {
+          conn.ws.close()
+        }
+      }
+    })
   }
+
+  // Add this connection to the shared set
+  const connection = { ws, username: username || session.username, role, canWrite }
+  shared.connections.add(connection)
 
   onConnect(containerName)
 
-  const shell = pty.spawn('lxc', ['exec', containerName, '--', 'bash', '--login'], {
-    name: 'xterm-256color',
-    cols: 80,
-    rows: 24,
-    env: { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor' },
-  })
+  // Notify all participants about new joiner
+  broadcastPresence(containerName)
 
-  shell.onData((data) => {
-    if (ws.readyState === WebSocket.OPEN) ws.send(data)
-  })
-
-  shell.onExit(({ exitCode }) => {
-    console.log(`[ws] Shell for ${session.username} exited (${exitCode})`)
-    if (ws.readyState === WebSocket.OPEN) ws.close()
-  })
-
+  // Handle messages from this client
   ws.on('message', (raw) => {
     let msg
     try { msg = JSON.parse(raw) } catch { return }
+
     if (msg.type === 'input') {
-      shell.write(msg.data)
+      // Permission check
+      if (!canWrite) {
+        ws.send(JSON.stringify({
+          type: 'error',
+          message: 'You do not have permission to type in this terminal'
+        }))
+        return
+      }
+      shared.pty.write(msg.data)
+
     } else if (msg.type === 'resize') {
-      shell.resize(Math.max(1, msg.cols), Math.max(1, msg.rows))
+      // Sync resize across all connections (use largest dimensions)
+      const newCols = Math.max(shared.resizeState.cols, msg.cols || 80)
+      const newRows = Math.max(shared.resizeState.rows, msg.rows || 24)
+      if (newCols !== shared.resizeState.cols || newRows !== shared.resizeState.rows) {
+        shared.resizeState = { cols: newCols, rows: newRows }
+        shared.pty.resize(newCols, newRows)
+      }
     }
   })
 
   ws.on('close', () => {
-    console.log(`[ws] ${session.username} disconnected`)
-    shell.kill()
-    onDisconnect(containerName)
+    console.log(`[ws] ${username || session.username} disconnected from ${containerName}`)
+    shared.connections.delete(connection)
+
+    // If no one left, clean up after delay
+    if (shared.connections.size === 0) {
+      setTimeout(() => {
+        const stillShared = sharedTerminals.get(containerName)
+        if (stillShared && stillShared.connections.size === 0) {
+          stillShared.pty.kill()
+          sharedTerminals.delete(containerName)
+          onDisconnect(containerName)
+        }
+      }, IDLE_STOP_DELAY)
+    } else {
+      // Still have connections, just update presence
+      broadcastPresence(containerName)
+    }
   })
 })
 

@@ -1392,3 +1392,112 @@ body.is-dark pre[class*='language-'] {
   font-size: 0.75rem;
   color: var(--sc101-fg-muted);
 }
+
+/* ── Multi-user / Shared Terminal Session UI ──────────────────────────────── */
+
+/* Presence indicators in terminal header */
+.sc101-participants {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+.sc101-participant-badge {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  position: relative;
+  border: 2px solid transparent;
+  transition: transform 0.15s ease;
+}
+
+.sc101-participant-badge:hover {
+  transform: scale(1.1);
+}
+
+.sc101-participant-badge--teacher {
+  background: var(--sc101-orange);
+  color: white;
+  border-color: #ffd32a;
+}
+
+.sc101-participant-badge--student {
+  background: #0066cc;
+  color: white;
+}
+
+.sc101-participant-badge--viewer {
+  background: #666;
+  color: white;
+}
+
+.sc101-crown {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  font-size: 12px;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3));
+}
+
+/* Read-only badge next to container name */
+.sc101-readonly-badge {
+  margin-left: 0.5rem;
+  padding: 0.1rem 0.4rem;
+  background: #f99b11;
+  color: white;
+  font-size: 0.7rem;
+  border-radius: 3px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+/* Read-only overlay at bottom of terminal */
+.sc101-readonly-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 0.5rem 1rem;
+  background: rgba(249, 155, 17, 0.15);
+  border-top: 2px solid #f99b11;
+  text-align: center;
+  font-size: 0.875rem;
+  color: #f99b11;
+  font-weight: 500;
+  backdrop-filter: blur(2px);
+  z-index: 10;
+}
+
+body.is-dark .sc101-readonly-overlay {
+  background: rgba(249, 155, 17, 0.25);
+}
+
+/* Next tutorial "prompt" button styling */
+.sc101-finish-next-title {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 400;
+  opacity: 0.85;
+  margin-top: 0.15rem;
+}
+
+.sc101-finish-restart {
+  background: transparent;
+  border: 1px solid var(--sc101-border);
+  color: var(--sc101-fg-muted);
+  font-size: 0.8rem;
+  padding: 0.35rem 0.75rem;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+
+.sc101-finish-restart:hover {
+  background-color: var(--sc101-bg-alt);
+  border-color: var(--sc101-fg-muted);
+}

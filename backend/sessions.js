@@ -26,6 +26,11 @@ function get(id) {
   return load()[id] || null
 }
 
+function generateJoinCode() {
+  // Generate a short, memorable join code (6 alphanumeric chars)
+  return crypto.randomBytes(3).toString('hex')
+}
+
 function create({ username, tutorialId = null }) {
   const sessions = load()
   const id = crypto.randomBytes(8).toString('hex')
@@ -36,7 +41,45 @@ function create({ username, tutorialId = null }) {
     tutorialId,          // active tutorial (null until selected)
     currentStep: 0,
     progress: {},        // { [tutorialId]: { status, currentStep } }
+    // Multi-user support (optional fields for backwards compatibility)
+    owner: null,         // { username, role: 'teacher', connectedAt }
+    participants: [],    // [{ username, role, canWrite, joinedAt }]
+    joinCode: null,      // For students to join
+    settings: {
+      allowStudentWrite: false,  // Default: students read-only
+      maxParticipants: 20
+    },
     createdAt: now, lastActiveAt: now
+  }
+  sessions[id] = session
+  save(sessions)
+  return session
+}
+
+// Create a teaching session (multi-user enabled)
+function createTeaching({ username, tutorialId = null, allowStudentWrite = false }) {
+  const sessions = load()
+  const id = crypto.randomBytes(8).toString('hex')
+  const containerName = sanitizeContainerName(username, id)
+  const joinCode = generateJoinCode()
+  const now = new Date().toISOString()
+  const session = {
+    id, 
+    username,  // Keep for backwards compatibility
+    containerName,
+    tutorialId,
+    currentStep: 0,
+    progress: {},
+    // Multi-user fields
+    owner: { username, role: 'teacher', connectedAt: now },
+    participants: [],
+    joinCode,
+    settings: {
+      allowStudentWrite,
+      maxParticipants: 20
+    },
+    createdAt: now, 
+    lastActiveAt: now
   }
   sessions[id] = session
   save(sessions)
@@ -91,6 +134,78 @@ function sanitizeContainerName(username, suffix = '') {
   return name
 }
 
+// Join a session as a participant
+function join(id, { username, role = 'student' }) {
+  const sessions = load()
+  if (!sessions[id]) return { error: 'Session not found' }
+  const s = sessions[id]
+
+  // Check if already joined
+  if (s.owner?.username === username) return { error: 'You are the owner of this session' }
+  if (s.participants.some(p => p.username === username)) return { error: 'Already joined' }
+
+  // Check max participants
+  if (s.participants.length >= (s.settings?.maxParticipants || 20)) {
+    return { error: 'Session is full' }
+  }
+
+  const now = new Date().toISOString()
+  const participant = {
+    username,
+    role,
+    canWrite: s.settings?.allowStudentWrite || false,
+    joinedAt: now
+  }
+
+  sessions[id] = {
+    ...s,
+    participants: [...s.participants, participant],
+    lastActiveAt: now
+  }
+  save(sessions)
+  return { session: sessions[id], participant }
+}
+
+// Leave a session
+function leave(id, username) {
+  const sessions = load()
+  if (!sessions[id]) return null
+  const s = sessions[id]
+
+  sessions[id] = {
+    ...s,
+    participants: s.participants.filter(p => p.username !== username),
+    lastActiveAt: new Date().toISOString()
+  }
+  save(sessions)
+  return sessions[id]
+}
+
+// Update participant permissions
+function updatePermissions(id, username, { canWrite }) {
+  const sessions = load()
+  if (!sessions[id]) return null
+  const s = sessions[id]
+
+  const participantIndex = s.participants.findIndex(p => p.username === username)
+  if (participantIndex === -1) return { error: 'Participant not found' }
+
+  s.participants[participantIndex] = {
+    ...s.participants[participantIndex],
+    canWrite: !!canWrite
+  }
+
+  sessions[id] = { ...s, lastActiveAt: new Date().toISOString() }
+  save(sessions)
+  return sessions[id]
+}
+
+// Find session by join code
+function getByJoinCode(joinCode) {
+  const sessions = load()
+  return Object.values(sessions).find(s => s.joinCode === joinCode) || null
+}
+
 function remove(id) {
   const sessions = load()
   if (!sessions[id]) return null
@@ -100,4 +215,8 @@ function remove(id) {
   return s
 }
 
-module.exports = { list, get, create, update, remove, sanitizeContainerName }
+module.exports = { 
+  list, get, create, createTeaching, update, remove, 
+  join, leave, updatePermissions, getByJoinCode,
+  sanitizeContainerName 
+}

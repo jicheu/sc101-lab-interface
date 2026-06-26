@@ -12,8 +12,11 @@ export default function TerminalPane({ session, onReady }) {
 
   useEffect(() => { onReadyRef.current = onReady }, [onReady])
 
+  const [participants, setParticipants] = useState([])
+  const [canWrite, setCanWrite] = useState(true)
+
   useEffect(() => {
-    const wsUrl = `ws://${window.location.host}/ws/terminal?session=${session.id}`
+    const wsUrl = `ws://${window.location.host}/ws/terminal?session=${session.id}&username=${encodeURIComponent(session.username)}`
 
     const term = new Terminal({
       cursorBlink: true,
@@ -57,7 +60,24 @@ export default function TerminalPane({ session, onReady }) {
         onReadyRef.current?.(sendCommand)
       }
 
-      ws.onmessage = (e) => term.write(e.data)
+      ws.onmessage = (e) => {
+        // Try to parse as JSON first (for presence/error messages)
+        try {
+          const msg = JSON.parse(e.data)
+          if (msg.type === 'presence') {
+            setParticipants(msg.participants || [])
+            // Update own write permission
+            const self = msg.participants?.find(p => p.username === session.username)
+            if (self) setCanWrite(self.canWrite)
+          } else if (msg.type === 'error') {
+            // Show error notification in terminal
+            term.write(`\r\n\x1b[31m[Error: ${msg.message}]\x1b[0m\r\n`)
+          }
+        } catch {
+          // Not JSON - it's raw terminal data
+          term.write(e.data)
+        }
+      }
 
       ws.onclose = () => {
         setConnected(false)
@@ -96,22 +116,54 @@ export default function TerminalPane({ session, onReady }) {
     }
   }, [session.id])
 
+  const isOwner = session.owner?.username === session.username
+  const ownerName = session.owner?.username || session.username
+
   return (
     <div className="sc101-terminal-pane">
       <div className="sc101-terminal-header">
         <span className="sc101-terminal-title">
           <span className={`sc101-status-dot${connected ? ' is-connected' : ''}`} />
           {session.containerName}
+          {!canWrite && <span className="sc101-readonly-badge">Read-only</span>}
         </span>
-        <span style={{ color: '#888', fontSize: '0.75rem' }}>
-          {connected ? 'connected' : 'connecting…'}
-        </span>
+        
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          {/* Presence indicators */}
+          {participants.length > 0 && (
+            <div className="sc101-participants">
+              {participants.map((p, i) => (
+                <div
+                  key={i}
+                  className={`sc101-participant-badge sc101-participant-badge--${p.role}`}
+                  title={`${p.username} (${p.role})${p.canWrite ? ' - can type' : ' - viewing'}`}
+                >
+                  {p.username[0]?.toUpperCase() || '?'}
+                  {p.role === 'teacher' && <span className="sc101-crown">👑</span>}
+                </div>
+              ))}
+            </div>
+          )}
+          
+          <span style={{ color: '#888', fontSize: '0.75rem' }}>
+            {connected ? 'connected' : 'connecting…'}
+          </span>
+        </div>
       </div>
-      <div
-        className="sc101-terminal-viewport"
-        ref={containerRef}
-        onClick={() => termRef.current?.focus()}
-      />
+      
+      <div style={{ position: 'relative', flex: 1, minHeight: 0 }}>
+        <div
+          className="sc101-terminal-viewport"
+          ref={containerRef}
+          onClick={() => termRef.current?.focus()}
+        />
+        
+        {!canWrite && (
+          <div className="sc101-readonly-overlay">
+            👁️ View-only mode — {ownerName} is controlling the terminal
+          </div>
+        )}
+      </div>
     </div>
   )
 }
