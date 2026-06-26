@@ -905,6 +905,12 @@ wss.on('connection', async (ws, req) => {
     console.log(`[ws] ${username || session.username} disconnected from ${containerName}`)
     shared.connections.delete(connection)
 
+    // Remove participant from session if they're not the owner
+    if (!isOwner && role === 'teacher') {
+      sessions.leave(session.id, username || session.username)
+      console.log(`[ws] Removed teacher ${username || session.username} from session ${session.id}`)
+    }
+
     // If no one left, clean up after delay
     if (shared.connections.size === 0) {
       setTimeout(() => {
