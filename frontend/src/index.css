@@ -1478,6 +1478,34 @@ body.is-dark .sc101-readonly-overlay {
   background: rgba(249, 155, 17, 0.25);
 }
 
+/* Enable write mode button for teachers */
+.sc101-enable-write-btn {
+  background: var(--sc101-orange);
+  color: white;
+  border: none;
+  padding: 0.4rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.1s ease;
+  margin-left: 0.5rem;
+}
+
+.sc101-enable-write-btn:hover:not(:disabled) {
+  background: var(--sc101-orange-hover);
+  transform: translateY(-1px);
+}
+
+.sc101-enable-write-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.sc101-enable-write-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* Next tutorial "prompt" button styling */
 .sc101-finish-next-title {
   display: block;

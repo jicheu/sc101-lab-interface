@@ -14,6 +14,7 @@ export default function TerminalPane({ session, onReady }) {
 
   const [participants, setParticipants] = useState([])
   const [canWrite, setCanWrite] = useState(true)
+  const [enablingWrite, setEnablingWrite] = useState(false)
 
   useEffect(() => {
     const wsUrl = `ws://${window.location.host}/ws/terminal?session=${session.id}&username=${encodeURIComponent(session.username)}`
@@ -118,6 +119,31 @@ export default function TerminalPane({ session, onReady }) {
 
   const isOwner = session.owner?.username === session.username
   const ownerName = session.owner?.username || session.username
+  
+  // Check if current user is a teacher (not owner)
+  const self = participants.find(p => p.username === session.username)
+  const isTeacher = self?.role === 'teacher' && !isOwner
+
+  const handleEnableWriteMode = async () => {
+    if (!isTeacher) return
+    setEnablingWrite(true)
+    try {
+      const result = await fetch(`/api/sessions/${session.id}/participants/${encodeURIComponent(session.username)}/permissions`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ canWrite: true })
+      }).then(r => r.json())
+      
+      if (result.error) {
+        alert(`Failed to enable write mode: ${result.error}`)
+      }
+      // Permission update will come through WebSocket presence message
+    } catch (err) {
+      alert(`Error: ${err.message}`)
+    } finally {
+      setEnablingWrite(false)
+    }
+  }
 
   return (
     <div className="sc101-terminal-pane">
@@ -160,7 +186,21 @@ export default function TerminalPane({ session, onReady }) {
         
         {!canWrite && (
           <div className="sc101-readonly-overlay">
-            👁️ View-only mode — {ownerName} is controlling the terminal
+            {isTeacher ? (
+              <>
+                <span>👑 Teacher observing — </span>
+                <button
+                  onClick={handleEnableWriteMode}
+                  disabled={enablingWrite}
+                  className="sc101-enable-write-btn"
+                  title="Enable typing to help the student"
+                >
+                  {enablingWrite ? 'Enabling...' : '✏️ Enable Write Mode'}
+                </button>
+              </>
+            ) : (
+              <>👁️ View-only mode — {ownerName} is controlling the terminal</>
+            )}
           </div>
         )}
       </div>
