@@ -48,8 +48,9 @@ export default function TeacherDashboard({ teacherSession, onJoinSession, onLogo
       const updatedSession = {
         ...teacherSession,
         ...result.session,
-        // Keep teacher's original username
-        username: teacherSession.username
+        // Keep teacher's original username and teacher flag
+        username: teacherSession.username,
+        isTeacher: true
       }
       
       onJoinSession(updatedSession)

@@ -23,6 +23,15 @@ export default function App() {
       .catch(() => setChecking(false))
   }, [])
 
+  // Update page title based on teacher mode
+  useEffect(() => {
+    if (session?.isTeacher) {
+      document.title = '👑 Teacher - SC101 Lab Interface'
+    } else {
+      document.title = 'SC101 Lab Interface'
+    }
+  }, [session?.isTeacher])
+
   // Keep a flat tutorial list so we can find the next tutorial
   useEffect(() => {
     fetch('/api/tutorials')
