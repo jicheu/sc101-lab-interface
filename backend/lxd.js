@@ -70,13 +70,23 @@ async function ensureContainerForUser(containerName) {
     console.log(`[lxd] Starting container ${containerName}…`)
     const startR = spawnSync('lxc', ['start', containerName], { encoding: 'utf8' })
     if (startR.status !== 0) {
-      // Container doesn't exist — create and start in one step
+      // Container doesn't exist — create and start in one step.
+      // Note: lxc launch exits 1 from node (snap pipe/TTY bug) even on success,
+      // so we ignore the exit code and verify with containerRunning() afterwards.
       console.log(`[lxd] Container ${containerName} not found, launching…`)
-      run(['launch', 'ubuntu:24.04', containerName])
-      await sleep(4000)
+      spawnSync('lxc', ['launch', 'ubuntu:24.04', containerName], { encoding: 'utf8' })
+      // Wait up to 15s for the container to reach RUNNING state
+      for (let i = 0; i < 15; i++) {
+        await sleep(1000)
+        if (containerRunning(containerName)) break
+      }
       console.log(`[lxd] Container ${containerName} created.`)
     } else {
-      await sleep(2000)
+      // Existing container starting — wait up to 5s
+      for (let i = 0; i < 5; i++) {
+        await sleep(1000)
+        if (containerRunning(containerName)) break
+      }
     }
     // Final check
     if (!containerRunning(containerName)) {
