@@ -17,10 +17,10 @@ export default function TeacherDashboard({ teacherSession, onJoinSession, onLogo
       try {
         const msg = JSON.parse(e.data)
         if (msg.type === 'sessions' && Array.isArray(msg.sessions)) {
-          const studentSessions = msg.sessions.filter(s => 
-            s.id !== teacherSession.id && 
-            s.username && 
-            !s.username.toLowerCase().includes('teacher')
+          const studentSessions = msg.sessions.filter(s =>
+            s.id !== teacherSession.id &&
+            s.username &&
+            !s.isTeacher
           )
           setSessions(studentSessions)
           setLoading(false)
@@ -45,10 +45,10 @@ export default function TeacherDashboard({ teacherSession, onJoinSession, onLogo
       .then(r => r.ok ? r.json() : [])
       .then(list => {
         // Filter out the teacher's own session and show only student sessions
-        const studentSessions = list.filter(s => 
-          s.id !== teacherSession.id && 
-          s.username && 
-          !s.username.toLowerCase().includes('teacher')
+        const studentSessions = list.filter(s =>
+          s.id !== teacherSession.id &&
+          s.username &&
+          !s.isTeacher
         )
         setSessions(studentSessions)
         setLoading(false)
@@ -58,6 +58,13 @@ export default function TeacherDashboard({ teacherSession, onJoinSession, onLogo
 
   const handleJoinSession = async (session) => {
     try {
+      // Remove any stale participant entry from a previous visit first
+      await fetch(`/api/sessions/${session.id}/leave`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: teacherSession.username }),
+      }).catch(() => {})
+
       // Join the student's session
       const result = await fetch(`/api/sessions/${session.id}/join`, {
         method: 'POST',

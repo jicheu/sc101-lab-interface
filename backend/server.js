@@ -143,9 +143,9 @@ app.get('/api/sessions/:id', (req, res) => {
 
 app.post('/api/sessions', (req, res) => {
   try {
-    const { username, tutorialId } = req.body || {}
+    const { username, tutorialId, isTeacher } = req.body || {}
     if (!username || !username.trim()) return res.status(400).json({ error: 'username required' })
-    const session = sessions.create({ username: username.trim(), tutorialId })
+    const session = sessions.create({ username: username.trim(), tutorialId, isTeacher: !!isTeacher })
     broadcastSessionsList()
     res.status(201).json(session)
   } catch (err) {
@@ -940,6 +940,11 @@ wss.on('connection', async (ws, req) => {
 
   // Notify all participants about new joiner
   broadcastPresence(containerName)
+
+  // Notify students when a teacher joins
+  if (role === 'teacher' && !isOwner) {
+    broadcastSessionEvent(containerName, { event: 'teacher-joined', username: userName })
+  }
 
   // Handle messages from this client
   ws.on('message', (raw) => {

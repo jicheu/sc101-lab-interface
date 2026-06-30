@@ -13,8 +13,8 @@ export default function App() {
   const [lastTutorialId, setLastTutorialId] = useState(null)
   const [tutorialProgress, setTutorialProgress] = useState(null)
   const [allTutorials, setAllTutorials] = useState([])
-  const [studentLeftModal, setStudentLeftModal] = useState(false)  // teacher notification
-  const [teacherLeftNotice, setTeacherLeftNotice] = useState(false) // student notification
+  const [studentLeftModal, setStudentLeftModal] = useState(false)    // teacher notification
+  const [teacherNotice, setTeacherNotice] = useState(null)            // { type: 'joined'|'left', username }
 
   useEffect(() => {
     const saved = localStorage.getItem('sc101_session_id')
@@ -104,38 +104,38 @@ export default function App() {
 
   const handleBackToSelector = async () => {
     const previousTutorialId = activeTutorialId || session.tutorialId
-    const s = await fetch(`/api/sessions/${session.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tutorialId: null }),
-    }).then((r) => r.json()).catch(() => null)
 
-    // If this is a teacher leaving a student's shared session, restore the
-    // teacher's own session ID so the dashboard shows correctly.
     if (session?.isTeacher) {
+      // Remove teacher from the student's participants list
+      await fetch(`/api/sessions/${session.id}/leave`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: session.username }),
+      }).catch(() => {})
+
       const teacherId = sessionStorage.getItem('sc101_teacher_session_id')
       if (teacherId) {
         localStorage.setItem('sc101_session_id', teacherId)
         localStorage.setItem('sc101_is_teacher', '1')
         sessionStorage.removeItem('sc101_teacher_session_id')
-        // Fetch the teacher's own session for the dashboard
         const ts = await fetch(`/api/sessions/${teacherId}`).then(r => r.ok ? r.json() : null)
         if (ts) {
           ts.isTeacher = true
           setSession(ts)
-        } else {
-          if (s) setSession(s)
         }
-      } else {
-        if (s) setSession(s)
       }
     } else {
+      const s = await fetch(`/api/sessions/${session.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tutorialId: null }),
+      }).then((r) => r.json()).catch(() => null)
       if (s) setSession(s)
     }
     setActiveTutorialId(null)
-    setLastTutorialId(previousTutorialId)
+    setLastTutorialId(previousTutorialId === '__teacher_view__' ? null : previousTutorialId)
     setTutorialProgress(null)
-    setTeacherLeftNotice(false)
+    setTeacherNotice(null)
   }
 
   // Find the immediately next tutorial in list order
@@ -178,9 +178,16 @@ export default function App() {
     if (evt.event === 'student-left' && session?.isTeacher) {
       setStudentLeftModal(true)
     }
-    if (evt.event === 'teacher-left' && !session?.isTeacher) {
-      setTeacherLeftNotice(true)
-      setTimeout(() => setTeacherLeftNotice(false), 8000)
+    if (!session?.isTeacher) {
+      if (evt.event === 'teacher-joined' || evt.event === 'teacher-left') {
+        const notice = {
+          type: evt.event === 'teacher-joined' ? 'joined' : 'left',
+          username: evt.username || evt.usernames?.[0],
+        }
+        setTeacherNotice(notice)
+        clearTimeout(window._teacherNoticeTimer)
+        window._teacherNoticeTimer = setTimeout(() => setTeacherNotice(null), 5000)
+      }
     }
   }, [session?.isTeacher])
 
@@ -194,17 +201,30 @@ export default function App() {
 
   if (!session) return <LoginScreen onSession={(s) => { setSession(s) }} />
 
-  // Teacher mode: Show dashboard instead of selector
-  if (session.isTeacher && !activeTutorialId) {
+  // Teacher mode: Show dashboard unless actively joined into a student session
+  // (tracked via sessionStorage teacher_session_id being set)
+  const teacherIsJoined = session.isTeacher && !!sessionStorage.getItem('sc101_teacher_session_id')
+  if (session.isTeacher && !teacherIsJoined) {
     return (
       <TeacherDashboard
         teacherSession={session}
         onJoinSession={(joinedSession) => {
           setSession(joinedSession)
-          setActiveTutorialId(joinedSession.tutorialId)
+          setActiveTutorialId(joinedSession.tutorialId || '__teacher_view__')
         }}
         onLogout={handleLogout}
       />
+    )
+  }
+
+  // If teacher joined but student has no active tutorial yet, show a waiting screen
+  if (session.isTeacher && teacherIsJoined && !activeTutorialId) {
+    return (
+      <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:'100vh', gap:'1rem', color:'var(--sc101-fg-muted)' }}>
+        <span style={{ fontSize:'2rem' }}>⏳</span>
+        <p>Waiting for the student to start a tutorial…</p>
+        <button className="sc101-nav-text-btn" onClick={handleBackToSelector}>← Back to student list</button>
+      </div>
     )
   }
 
@@ -228,9 +248,7 @@ export default function App() {
           SC101 Lab Interface
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          {!session.isTeacher && teacherLeftNotice && (
-            <span className="sc101-nav-pill">👋 Teacher left</span>
-          )}
+
           <button onClick={handleBackToSelector} className="sc101-nav-text-btn">
             {session.isTeacher ? '← Back' : '← Tutorials'}
           </button>
@@ -245,7 +263,7 @@ export default function App() {
       </nav>
       <div className="sc101-body">
         <TutorialPane
-          tutorialId={activeTutorialId}
+          tutorialId={activeTutorialId === '__teacher_view__' ? null : activeTutorialId}
           session={session}
           onRunCommand={handleRunCommand}
           onProgress={setTutorialProgress}
@@ -255,6 +273,19 @@ export default function App() {
         <div className="sc101-divider" />
         <TerminalPane session={session} onReady={registerSendCommand} onSessionEvent={handleSessionEvent} />
       </div>
+
+      {/* Student notification: teacher joined or left — toast at top-right */}
+      {!session.isTeacher && teacherNotice && (
+        <div className={`sc101-toast sc101-toast--${teacherNotice.type === 'joined' ? 'info' : 'warn'}`}>
+          <span className="sc101-toast-icon">{teacherNotice.type === 'joined' ? '👑' : '👋'}</span>
+          <span className="sc101-toast-msg">
+            {teacherNotice.type === 'joined'
+              ? <><strong>{teacherNotice.username}</strong> is now watching your session.</>  
+              : <><strong>{teacherNotice.username || 'Teacher'}</strong> has left the session.</>}
+          </span>
+          <button className="sc101-toast-close" onClick={() => setTeacherNotice(null)}>✕</button>
+        </div>
+      )}
 
       {/* Teacher notification: student left the shared session */}
       {studentLeftModal && (

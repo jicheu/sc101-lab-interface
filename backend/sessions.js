@@ -54,18 +54,18 @@ function generateJoinCode() {
   return crypto.randomBytes(3).toString('hex')
 }
 
-function create({ username, tutorialId = null }) {
+function create({ username, tutorialId = null, isTeacher = false }) {
   const sessions = load()
   const id = crypto.randomBytes(8).toString('hex')
   const containerName = sanitizeContainerName(username, id)
   const now = new Date().toISOString()
   const session = {
     id, username, containerName,
+    isTeacher: !!isTeacher,
     tutorialId,          // active tutorial (null until selected)
     currentStep: 0,
     progress: {},        // { [tutorialId]: { status, currentStep } }
-    // Multi-user support: set owner for regular sessions too
-    owner: { username, role: 'student', connectedAt: now },
+    owner: { username, role: isTeacher ? 'teacher' : 'student', connectedAt: now },
     participants: [],    // [{ username, role, canWrite, joinedAt }]
     joinCode: null,      // For students to join
     settings: {

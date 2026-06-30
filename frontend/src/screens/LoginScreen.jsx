@@ -18,9 +18,9 @@ export default function LoginScreen({ onSession }) {
       .then((list) => {
         if (!list.length) return
         
-        // Split sessions into teacher and regular
-        const regular = list.filter(s => !s.username?.toLowerCase().includes('teacher'))
-        const teachers = list.filter(s => s.username?.toLowerCase().includes('teacher'))
+        // Split sessions into teacher and regular using the isTeacher flag
+        const regular = list.filter(s => !s.isTeacher)
+        const teachers = list.filter(s => s.isTeacher)
         
         setSessions(regular)
         setTeacherSessions(teachers)
@@ -28,7 +28,7 @@ export default function LoginScreen({ onSession }) {
         // Auto-switch to appropriate tab
         if (saved) {
           const savedSession = list.find(s => s.id === saved)
-          if (savedSession?.username?.toLowerCase().includes('teacher')) {
+          if (savedSession?.isTeacher) {
             setTab('teacher')
           } else if (savedSession) {
             setTab('resume')
@@ -51,7 +51,7 @@ export default function LoginScreen({ onSession }) {
       const res = await fetch('/api/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: username.trim() }),
+        body: JSON.stringify({ username: username.trim(), isTeacher: asTeacher }),
       })
       let data
       try { data = await res.json() } catch { data = {} }
@@ -59,8 +59,7 @@ export default function LoginScreen({ onSession }) {
       localStorage.setItem('sc101_session_id', data.id)
       if (asTeacher) localStorage.setItem('sc101_is_teacher', '1')
       else localStorage.removeItem('sc101_is_teacher')
-      // Add isTeacher flag to session data
-      onSession({ ...data, isTeacher: asTeacher })
+      onSession({ ...data, isTeacher: !!data.isTeacher || asTeacher })
     } catch (err) {
       setError(err.message)
       setLoading(false)
