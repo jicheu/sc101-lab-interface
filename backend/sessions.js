@@ -18,25 +18,91 @@ function save(sessions) {
   fs.renameSync(tmpFile, DATA_FILE)
 }
 
+// Clean up duplicate participants from a session
+function deduplicateParticipants(session) {
+  if (!session.participants || session.participants.length === 0) return session
+
+  // Keep only the most recent entry for each username
+  const seen = new Map()
+  for (const p of session.participants) {
+    const key = p.username
+    const existing = seen.get(key)
+    if (!existing || new Date(p.joinedAt || 0) > new Date(existing.joinedAt || 0)) {
+      seen.set(key, p)
+    }
+  }
+
+  return {
+    ...session,
+    participants: Array.from(seen.values())
+  }
+}
+
 function list() {
-  return Object.values(load())
+  const sessions = load()
+  // Clean up duplicates on load
+  return Object.values(sessions).map(deduplicateParticipants)
 }
 
 function get(id) {
-  return load()[id] || null
+  const session = load()[id]
+  return session ? deduplicateParticipants(session) : null
 }
 
-function create({ username, tutorialId = null }) {
+function generateJoinCode() {
+  // Generate a short, memorable join code (6 alphanumeric chars)
+  return crypto.randomBytes(3).toString('hex')
+}
+
+function create({ username, tutorialId = null, isTeacher = false }) {
   const sessions = load()
   const id = crypto.randomBytes(8).toString('hex')
   const containerName = sanitizeContainerName(username, id)
   const now = new Date().toISOString()
   const session = {
     id, username, containerName,
+    isTeacher: !!isTeacher,
     tutorialId,          // active tutorial (null until selected)
     currentStep: 0,
     progress: {},        // { [tutorialId]: { status, currentStep } }
+    owner: { username, role: isTeacher ? 'teacher' : 'student', connectedAt: now },
+    participants: [],    // [{ username, role, canWrite, joinedAt }]
+    joinCode: null,      // For students to join
+    settings: {
+      allowStudentWrite: false,
+      maxParticipants: 20
+    },
     createdAt: now, lastActiveAt: now
+  }
+  sessions[id] = session
+  save(sessions)
+  return session
+}
+
+// Create a teaching session (multi-user enabled)
+function createTeaching({ username, tutorialId = null, allowStudentWrite = false }) {
+  const sessions = load()
+  const id = crypto.randomBytes(8).toString('hex')
+  const containerName = sanitizeContainerName(username, id)
+  const joinCode = generateJoinCode()
+  const now = new Date().toISOString()
+  const session = {
+    id, 
+    username,  // Keep for backwards compatibility
+    containerName,
+    tutorialId,
+    currentStep: 0,
+    progress: {},
+    // Multi-user fields
+    owner: { username, role: 'teacher', connectedAt: now },
+    participants: [],
+    joinCode,
+    settings: {
+      allowStudentWrite,
+      maxParticipants: 20
+    },
+    createdAt: now, 
+    lastActiveAt: now
   }
   sessions[id] = session
   save(sessions)
@@ -91,6 +157,81 @@ function sanitizeContainerName(username, suffix = '') {
   return name
 }
 
+// Join a session as a participant
+function join(id, { username, role = 'student' }) {
+  const sessions = load()
+  if (!sessions[id]) return { error: 'Session not found' }
+  const s = sessions[id]
+
+  // Check if it's the owner
+  if (s.owner?.username === username) return { error: 'You are the owner of this session' }
+
+  // If already joined, remove old entry (rejoin scenario) and dedupe
+  let participants = s.participants.filter(p => p.username !== username)
+  
+  // Check max participants (only for new joins)
+  if (participants.length >= (s.settings?.maxParticipants || 20)) {
+    return { error: 'Session is full' }
+  }
+
+  const now = new Date().toISOString()
+  const participant = {
+    username,
+    role,
+    // Teachers join read-only by default (can enable write mode), students follow session settings
+    canWrite: s.settings?.allowStudentWrite || false,
+    joinedAt: now
+  }
+
+  sessions[id] = {
+    ...s,
+    participants: [...participants, participant],
+    lastActiveAt: now
+  }
+  save(sessions)
+  return { session: sessions[id], participant }
+}
+
+// Leave a session
+function leave(id, username) {
+  const sessions = load()
+  if (!sessions[id]) return null
+  const s = sessions[id]
+
+  sessions[id] = {
+    ...s,
+    participants: s.participants.filter(p => p.username !== username),
+    lastActiveAt: new Date().toISOString()
+  }
+  save(sessions)
+  return sessions[id]
+}
+
+// Update participant permissions
+function updatePermissions(id, username, { canWrite }) {
+  const sessions = load()
+  if (!sessions[id]) return null
+  const s = sessions[id]
+
+  const participantIndex = s.participants.findIndex(p => p.username === username)
+  if (participantIndex === -1) return { error: 'Participant not found' }
+
+  s.participants[participantIndex] = {
+    ...s.participants[participantIndex],
+    canWrite: !!canWrite
+  }
+
+  sessions[id] = { ...s, lastActiveAt: new Date().toISOString() }
+  save(sessions)
+  return sessions[id]
+}
+
+// Find session by join code
+function getByJoinCode(joinCode) {
+  const sessions = load()
+  return Object.values(sessions).find(s => s.joinCode === joinCode) || null
+}
+
 function remove(id) {
   const sessions = load()
   if (!sessions[id]) return null
@@ -100,4 +241,8 @@ function remove(id) {
   return s
 }
 
-module.exports = { list, get, create, update, remove, sanitizeContainerName }
+module.exports = { 
+  list, get, create, createTeaching, update, remove, 
+  join, leave, updatePermissions, getByJoinCode,
+  sanitizeContainerName 
+}

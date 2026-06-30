@@ -75,6 +75,7 @@ export default function TutorialPane({ tutorialId: tutorialIdProp, session, onRu
       .catch((e) => setError(e.message))
   }, [tutorialId, tutorialRef])
 
+
   useEffect(() => {
     if (!meta) return
     // Clamp stepIndex to valid range for the new tutorial

@@ -9,26 +9,26 @@
    ---------------------------------------------------------- */
 :root {
   /* Brand */
-  --sc101-orange:  #e95420;
+  --sc101-orange: #e95420;
   --sc101-orange-hover: #c44111;
-  --sc101-link:    #0066cc;
+  --sc101-link: #0066cc;
 
   /* Layout */
   --sc101-nav-height: 3rem;
   --sc101-sidebar-width: 50%;
 
   /* Vanilla colour aliases (light mode defaults) */
-  --sc101-bg:      #ffffff;
-  --sc101-bg-alt:  #f5f5f5;
-  --sc101-fg:      #111111;
+  --sc101-bg: #ffffff;
+  --sc101-bg-alt: #f5f5f5;
+  --sc101-fg: #111111;
   --sc101-fg-muted: #666666;
-  --sc101-border:  #d9d9d9;
+  --sc101-border: #d9d9d9;
   --sc101-code-bg: #f4f4f4;
   --sc101-highlight: rgba(233, 84, 32, 0.08);
 
   /* Card / raised surface */
-  --sc101-card-bg:  #ffffff;
-  --sc101-card-shadow: 0 2px 12px rgba(0,0,0,0.12);
+  --sc101-card-bg: #ffffff;
+  --sc101-card-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
   --sc101-radius: 4px;
 
   /* Terminal */
@@ -38,23 +38,29 @@
 
 /* Dark mode overrides */
 body.is-dark {
-  --sc101-bg:      #111111;
-  --sc101-bg-alt:  #1a1a1a;
-  --sc101-fg:      #f5f5f5;
+  --sc101-bg: #111111;
+  --sc101-bg-alt: #1a1a1a;
+  --sc101-fg: #f5f5f5;
   --sc101-fg-muted: #aaaaaa;
-  --sc101-border:  #333333;
+  --sc101-border: #333333;
   --sc101-code-bg: #1e1e1e;
   --sc101-highlight: rgba(233, 84, 32, 0.15);
-  --sc101-card-bg:  #1e1e1e;
-  --sc101-card-shadow: 0 2px 16px rgba(0,0,0,0.5);
+  --sc101-card-bg: #1e1e1e;
+  --sc101-card-shadow: 0 2px 16px rgba(0, 0, 0, 0.5);
 }
 
 /* ----------------------------------------------------------
    1. Base / reset
    ---------------------------------------------------------- */
-*, *::before, *::after { box-sizing: border-box; }
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
 
-html, body, #root {
+html,
+body,
+#root {
   height: 100%;
   margin: 0;
   padding: 0;
@@ -70,7 +76,10 @@ a {
   color: var(--sc101-link);
   text-decoration: none;
 }
-a:hover { text-decoration: underline; }
+
+a:hover {
+  text-decoration: underline;
+}
 
 /* ----------------------------------------------------------
    2. Navigation bar (shared by login + app)
@@ -103,7 +112,7 @@ a:hover { text-decoration: underline; }
   width: 1.75rem;
   height: 1.75rem;
   border-radius: 50%;
-  background-color: rgba(255,255,255,0.25);
+  background-color: rgba(255, 255, 255, 0.25);
   font-weight: 700;
   font-size: 0.75rem;
 }
@@ -113,7 +122,7 @@ a:hover { text-decoration: underline; }
    ---------------------------------------------------------- */
 .theme-toggle {
   display: inline-flex;
-  border: 1px solid rgba(255,255,255,0.45);
+  border: 1px solid rgba(255, 255, 255, 0.45);
   border-radius: var(--sc101-radius);
   overflow: hidden;
 }
@@ -121,7 +130,7 @@ a:hover { text-decoration: underline; }
 .theme-btn {
   background: transparent;
   border: none;
-  color: rgba(255,255,255,0.85);
+  color: rgba(255, 255, 255, 0.85);
   cursor: pointer;
   font-family: inherit;
   font-size: 0.75rem;
@@ -131,12 +140,12 @@ a:hover { text-decoration: underline; }
 }
 
 .theme-btn:hover {
-  background: rgba(255,255,255,0.15);
+  background: rgba(255, 255, 255, 0.15);
   color: #ffffff;
 }
 
 .theme-btn.active {
-  background: rgba(255,255,255,0.25);
+  background: rgba(255, 255, 255, 0.25);
   color: #ffffff;
   font-weight: 600;
 }
@@ -145,9 +154,11 @@ a:hover { text-decoration: underline; }
 .sc101-login-card .theme-toggle {
   border-color: var(--sc101-border);
 }
+
 .sc101-login-card .theme-btn {
   color: var(--sc101-fg-muted);
 }
+
 .sc101-login-card .theme-btn.active {
   color: var(--sc101-fg);
   background: var(--sc101-bg-alt);
@@ -177,7 +188,10 @@ a:hover { text-decoration: underline; }
   flex-shrink: 0;
   transition: background-color 0.15s;
 }
-.sc101-divider:hover { background-color: var(--sc101-orange); }
+
+.sc101-divider:hover {
+  background-color: var(--sc101-orange);
+}
 
 /* ----------------------------------------------------------
    5. Tutorial pane (left)
@@ -218,9 +232,20 @@ a:hover { text-decoration: underline; }
   padding: 1.5rem 1.75rem;
 }
 
-.sc101-tutorial-content h1 { font-size: 1.5rem; margin-top: 0; }
-.sc101-tutorial-content h2 { font-size: 1.2rem; margin-top: 1.75rem; }
-.sc101-tutorial-content h3 { font-size: 1rem; margin-top: 1.25rem; }
+.sc101-tutorial-content h1 {
+  font-size: 1.5rem;
+  margin-top: 0;
+}
+
+.sc101-tutorial-content h2 {
+  font-size: 1.2rem;
+  margin-top: 1.75rem;
+}
+
+.sc101-tutorial-content h3 {
+  font-size: 1rem;
+  margin-top: 1.25rem;
+}
 
 .sc101-tutorial-content p {
   color: var(--sc101-fg);
@@ -286,7 +311,9 @@ a:hover { text-decoration: underline; }
   opacity: 1;
 }
 
-.sc101-run-btn:hover { background-color: var(--sc101-orange-hover); }
+.sc101-run-btn:hover {
+  background-color: var(--sc101-orange-hover);
+}
 
 /* Step navigation */
 .sc101-step-nav {
@@ -342,7 +369,10 @@ a:hover { text-decoration: underline; }
   background-color: #666;
   display: inline-block;
 }
-.sc101-status-dot.is-connected { background-color: #0e8420; }
+
+.sc101-status-dot.is-connected {
+  background-color: #0e8420;
+}
 
 .sc101-terminal-viewport {
   flex: 1;
@@ -420,7 +450,9 @@ a:hover { text-decoration: underline; }
   transition: color 0.15s ease, border-color 0.15s ease;
 }
 
-.sc101-tab:hover { color: var(--sc101-fg); }
+.sc101-tab:hover {
+  color: var(--sc101-fg);
+}
 
 .sc101-tab.is-active {
   color: var(--sc101-orange);
@@ -456,7 +488,9 @@ a:hover { text-decoration: underline; }
   box-shadow: 0 0 0 3px rgba(233, 84, 32, 0.2);
 }
 
-.p-form__group { margin-bottom: 1.25rem; }
+.p-form__group {
+  margin-bottom: 1.25rem;
+}
 
 /* Buttons */
 .p-button,
@@ -480,14 +514,22 @@ a:hover { text-decoration: underline; }
   border-color: var(--sc101-border);
   color: var(--sc101-fg);
 }
-.p-button:hover { background-color: var(--sc101-bg-alt); }
+
+.p-button:hover {
+  background-color: var(--sc101-bg-alt);
+}
 
 .p-button--positive {
   background-color: #0e8420;
   border-color: #0e8420;
   color: #ffffff;
 }
-.p-button--positive:hover { background-color: #0a6618; border-color: #0a6618; }
+
+.p-button--positive:hover {
+  background-color: #0a6618;
+  border-color: #0a6618;
+}
+
 .p-button--positive:disabled {
   opacity: 0.55;
   cursor: not-allowed;
@@ -599,18 +641,28 @@ body.is-dark pre[class*='language-'] {
   width: 1px;
   height: 1px;
   overflow: hidden;
-  clip: rect(0,0,0,0);
+  clip: rect(0, 0, 0, 0);
   white-space: nowrap;
 }
 
 /* Scrollbar — subtle in both themes */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 ::-webkit-scrollbar-thumb {
   background-color: var(--sc101-border);
   border-radius: 3px;
 }
-::-webkit-scrollbar-thumb:hover { background-color: var(--sc101-fg-muted); }
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--sc101-fg-muted);
+}
 
 /* ----------------------------------------------------------
    10. Settings panel (gear popover)
@@ -619,9 +671,9 @@ body.is-dark pre[class*='language-'] {
 /* Gear button in the nav */
 .sc101-gear-btn {
   background: transparent;
-  border: 1px solid rgba(255,255,255,0.45);
+  border: 1px solid rgba(255, 255, 255, 0.45);
   border-radius: var(--sc101-radius);
-  color: rgba(255,255,255,0.85);
+  color: rgba(255, 255, 255, 0.85);
   cursor: pointer;
   font-size: 1rem;
   line-height: 1;
@@ -630,26 +682,28 @@ body.is-dark pre[class*='language-'] {
   min-width: 2rem;
   text-align: center;
 }
+
 .sc101-gear-btn:hover,
 .sc101-gear-btn[aria-expanded='true'] {
-  background: rgba(255,255,255,0.2);
+  background: rgba(255, 255, 255, 0.2);
   color: #ffffff;
 }
 
 /* Generic nav text/icon button (Exit, etc.) */
 .sc101-nav-text-btn {
   background: transparent;
-  border: 1px solid rgba(255,255,255,0.45);
+  border: 1px solid rgba(255, 255, 255, 0.45);
   border-radius: var(--sc101-radius);
-  color: rgba(255,255,255,0.85);
+  color: rgba(255, 255, 255, 0.85);
   cursor: pointer;
   font-family: inherit;
   font-size: 0.75rem;
   padding: 0.25rem 0.625rem;
   transition: background 0.15s ease, color 0.15s ease;
 }
+
 .sc101-nav-text-btn:hover {
-  background: rgba(255,255,255,0.2);
+  background: rgba(255, 255, 255, 0.2);
   color: #ffffff;
 }
 
@@ -670,8 +724,15 @@ body.is-dark pre[class*='language-'] {
 }
 
 @keyframes sc101-panel-in {
-  from { opacity: 0; transform: translateY(-6px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .sc101-settings-section {
@@ -747,11 +808,16 @@ body.is-dark pre[class*='language-'] {
   text-align: left;
   transition: background-color 0.15s ease, border-color 0.15s ease;
 }
+
 .sc101-download-btn:hover:not(:disabled) {
   background-color: var(--sc101-highlight);
   border-color: var(--sc101-orange);
 }
-.sc101-download-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.sc101-download-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
 
 /* In-panel theme switcher */
 .sc101-theme-row {
@@ -773,10 +839,12 @@ body.is-dark pre[class*='language-'] {
   text-align: center;
   transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
+
 .sc101-theme-opt:hover {
   border-color: var(--sc101-orange);
   color: var(--sc101-fg);
 }
+
 .sc101-theme-opt.is-active {
   background-color: var(--sc101-orange);
   border-color: var(--sc101-orange);
@@ -791,6 +859,7 @@ body.is-dark pre[class*='language-'] {
   color: var(--sc101-fg-muted);
   transition: color 0.2s ease;
 }
+
 .sc101-export-status.is-done {
   color: #0e8420;
   font-style: normal;
@@ -804,6 +873,7 @@ body.is-dark pre[class*='language-'] {
   height: 100vh;
   background-color: var(--sc101-bg);
 }
+
 .sc101-selector-body {
   flex: 1;
   overflow-y: auto;
@@ -812,19 +882,23 @@ body.is-dark pre[class*='language-'] {
   width: 100%;
   margin: 0 auto;
 }
+
 .sc101-selector-header {
   margin-bottom: 2rem;
 }
+
 .sc101-selector-header h1 {
   font-size: 1.75rem;
   font-weight: 300;
   color: var(--sc101-fg);
   margin-bottom: 0.25rem;
 }
+
 .sc101-selector-header p {
   color: var(--sc101-fg-muted);
   margin: 0;
 }
+
 .sc101-selector-empty {
   color: var(--sc101-fg-muted);
   font-style: italic;
@@ -836,6 +910,7 @@ body.is-dark pre[class*='language-'] {
 .sc101-course {
   margin-bottom: 2.5rem;
 }
+
 .sc101-course-header {
   width: 100%;
   background: none;
@@ -847,15 +922,18 @@ body.is-dark pre[class*='language-'] {
   border-radius: 4px 4px 0 0;
   transition: background-color 0.15s ease;
 }
+
 .sc101-course-header:hover {
   background-color: var(--sc101-surface);
 }
+
 .sc101-course-title-row {
   display: flex;
   align-items: center;
   gap: 0.6rem;
   margin-bottom: 0.5rem;
 }
+
 .sc101-course-toggle {
   display: inline-flex;
   align-items: center;
@@ -872,11 +950,13 @@ body.is-dark pre[class*='language-'] {
   padding: 0;
   text-align: left;
 }
+
 .sc101-course-chevron {
   font-size: 0.75rem;
   color: var(--sc101-orange);
   flex-shrink: 0;
 }
+
 .sc101-course-title {
   font-size: 1.5rem;
   font-weight: 500;
@@ -884,6 +964,7 @@ body.is-dark pre[class*='language-'] {
   margin: 0;
   flex: 1;
 }
+
 .sc101-course-pct {
   font-size: 0.9rem;
   color: var(--sc101-fg-muted);
@@ -896,21 +977,25 @@ body.is-dark pre[class*='language-'] {
   margin-bottom: 1.5rem;
   padding-left: 1rem;
 }
+
 .sc101-section-header {
   margin-bottom: 1rem;
 }
+
 .sc101-section-title-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 0.25rem;
 }
+
 .sc101-section-title {
   font-size: 1.1rem;
   font-weight: 400;
   color: var(--sc101-fg);
   margin: 0;
 }
+
 .sc101-section-pct {
   font-size: 0.8rem;
   color: var(--sc101-fg-muted);
@@ -927,13 +1012,16 @@ body.is-dark pre[class*='language-'] {
 .sc101-tut-group {
   margin-bottom: 1rem;
 }
-.sc101-tut-group + .sc101-tut-group {
+
+.sc101-tut-group+.sc101-tut-group {
   margin-top: 0.25rem;
 }
+
 /* Root row: single card, full width */
 .sc101-tutorial-grid--root {
   grid-template-columns: minmax(300px, 480px);
 }
+
 /* Children row: indented, side by side */
 .sc101-tutorial-grid--children {
   margin-left: 2.5rem;
@@ -949,14 +1037,17 @@ body.is-dark pre[class*='language-'] {
   flex-direction: column;
   transition: box-shadow 0.15s ease, border-color 0.15s ease;
 }
+
 .sc101-tut-card:hover {
-  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   border-color: var(--sc101-orange);
 }
+
 .sc101-tut-card.is-broken {
   border-color: #c7162b;
   opacity: 0.85;
 }
+
 .sc101-tut-card.is-locked {
   opacity: 0.7;
 }
@@ -968,11 +1059,13 @@ body.is-dark pre[class*='language-'] {
   padding: 0.75rem 1rem 0;
   gap: 0.5rem;
 }
+
 .sc101-tut-badges {
   display: flex;
   flex-wrap: wrap;
   gap: 0.375rem;
 }
+
 .sc101-tut-time {
   white-space: nowrap;
   font-size: 0.75rem;
@@ -992,13 +1085,42 @@ body.is-dark pre[class*='language-'] {
   border: none;
   cursor: default;
 }
-.sc101-badge--muted  { background: var(--sc101-border); color: var(--sc101-fg-muted); }
-.sc101-badge--info   { background: #005daf; color: #ffffff; }
-.sc101-badge--ok     { background: #0e8420; color: #ffffff; }
-.sc101-badge--broken { background: #c7162b; color: #ffffff; cursor: pointer; }
-.sc101-badge--req    { font-size: 0.72rem; text-transform: none; }
-.sc101-badge--req.is-done    { background: #d4efda; color: #0e8420; }
-.sc101-badge--req.is-pending { background: #fff3cd; color: #7d5c00; }
+
+.sc101-badge--muted {
+  background: var(--sc101-border);
+  color: var(--sc101-fg-muted);
+}
+
+.sc101-badge--info {
+  background: #005daf;
+  color: #ffffff;
+}
+
+.sc101-badge--ok {
+  background: #0e8420;
+  color: #ffffff;
+}
+
+.sc101-badge--broken {
+  background: #c7162b;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.sc101-badge--req {
+  font-size: 0.72rem;
+  text-transform: none;
+}
+
+.sc101-badge--req.is-done {
+  background: #d4efda;
+  color: #0e8420;
+}
+
+.sc101-badge--req.is-pending {
+  background: #fff3cd;
+  color: #7d5c00;
+}
 
 /* Error list */
 .sc101-tut-errors {
@@ -1010,38 +1132,53 @@ body.is-dark pre[class*='language-'] {
   font-size: 0.8rem;
   color: var(--sc101-fg);
 }
+
 .sc101-tut-errors-title {
   font-weight: 500;
   margin-bottom: 0.25rem;
   color: #c7162b;
 }
-.sc101-tut-errors ul { margin: 0; padding-left: 1.2em; }
-.sc101-tut-errors li { margin-bottom: 0.15rem; }
-.sc101-tut-errors code { font-size: 0.78rem; }
+
+.sc101-tut-errors ul {
+  margin: 0;
+  padding-left: 1.2em;
+}
+
+.sc101-tut-errors li {
+  margin-bottom: 0.15rem;
+}
+
+.sc101-tut-errors code {
+  font-size: 0.78rem;
+}
 
 /* Card body */
 .sc101-tut-card-body {
   flex: 1;
   padding: 0.75rem 1rem;
 }
+
 .sc101-tut-title {
   font-size: 1rem;
   font-weight: 500;
   margin: 0 0 0.35rem;
   color: var(--sc101-fg);
 }
+
 .sc101-tut-desc {
   font-size: 0.85rem;
   color: var(--sc101-fg-muted);
   margin: 0 0 0.75rem;
   line-height: 1.5;
 }
+
 .sc101-tut-tags {
   display: flex;
   flex-wrap: wrap;
   gap: 0.3rem;
   margin-bottom: 0.6rem;
 }
+
 .sc101-tut-tag {
   background: var(--sc101-bg);
   border: 1px solid var(--sc101-border);
@@ -1050,6 +1187,7 @@ body.is-dark pre[class*='language-'] {
   padding: 0.1em 0.55em;
   color: var(--sc101-fg-muted);
 }
+
 .sc101-tut-requires {
   display: flex;
   align-items: center;
@@ -1057,16 +1195,19 @@ body.is-dark pre[class*='language-'] {
   flex-wrap: wrap;
   margin-bottom: 0.6rem;
 }
+
 .sc101-tut-requires-label {
   font-size: 0.75rem;
   color: var(--sc101-fg-muted);
 }
+
 .sc101-tut-progress {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   margin-top: 0.25rem;
 }
+
 .sc101-progress-track {
   flex: 1;
   height: 4px;
@@ -1074,6 +1215,7 @@ body.is-dark pre[class*='language-'] {
   border-radius: 2px;
   overflow: hidden;
 }
+
 .sc101-progress-fill {
   height: 100%;
   background: var(--sc101-orange);
@@ -1088,7 +1230,11 @@ body.is-dark pre[class*='language-'] {
   display: flex;
   justify-content: flex-end;
 }
-.sc101-tut-cta { font-size: 0.85rem !important; }
+
+.sc101-tut-cta {
+  font-size: 0.85rem !important;
+}
+
 .sc101-tut-cta-disabled {
   font-size: 0.8rem;
   color: var(--sc101-fg-muted);
@@ -1103,6 +1249,7 @@ body.is-dark pre[class*='language-'] {
   border-radius: 4px;
   padding: 0.75rem 1rem;
 }
+
 .sc101-global-progress-label {
   display: block;
   font-size: 0.85rem;
@@ -1116,9 +1263,19 @@ body.is-dark pre[class*='language-'] {
   align-items: center;
   gap: 0.5rem;
 }
-.sc101-progress-row--lg .sc101-progress-track { height: 6px; }
-.sc101-progress-row--md .sc101-progress-track { height: 4px; }
-.sc101-progress-row--sm .sc101-progress-track { height: 3px; }
+
+.sc101-progress-row--lg .sc101-progress-track {
+  height: 6px;
+}
+
+.sc101-progress-row--md .sc101-progress-track {
+  height: 4px;
+}
+
+.sc101-progress-row--sm .sc101-progress-track {
+  height: 3px;
+}
+
 .sc101-progress-pct {
   white-space: nowrap;
   font-size: 0.75rem;
@@ -1137,8 +1294,16 @@ body.is-dark pre[class*='language-'] {
   padding: 1rem 1.25rem;
   color: var(--sc101-fg);
 }
-.sc101-selector-error strong { color: #c7162b; }
-.sc101-selector-error p { margin: 0.25rem 0 0; font-size: 0.875rem; color: var(--sc101-fg-muted); }
+
+.sc101-selector-error strong {
+  color: #c7162b;
+}
+
+.sc101-selector-error p {
+  margin: 0.25rem 0 0;
+  font-size: 0.875rem;
+  color: var(--sc101-fg-muted);
+}
 
 /* Delete account button in session list */
 .sc101-session-item-wrapper {
@@ -1146,10 +1311,12 @@ body.is-dark pre[class*='language-'] {
   align-items: stretch;
   border-bottom: 1px solid var(--sc101-border);
 }
+
 .sc101-session-item-wrapper .sc101-session-item {
   flex: 1;
   border-bottom: none;
 }
+
 .sc101-session-delete {
   background: none;
   border: none;
@@ -1160,6 +1327,7 @@ body.is-dark pre[class*='language-'] {
   font-size: 1rem;
   transition: color 0.15s, background-color 0.15s;
 }
+
 .sc101-session-delete:hover {
   background-color: rgba(199, 22, 43, 0.08);
   color: #c7162b;
@@ -1175,6 +1343,7 @@ body.is-dark pre[class*='language-'] {
   justify-content: center;
   z-index: 100;
 }
+
 .sc101-finish-card {
   background: var(--sc101-bg);
   border: 2px solid var(--sc101-orange);
@@ -1188,31 +1357,37 @@ body.is-dark pre[class*='language-'] {
   opacity: 1;
   isolation: isolate;
 }
+
 .sc101-finish-icon {
   font-size: 3rem;
   line-height: 1;
   margin-bottom: 0.75rem;
 }
+
 .sc101-finish-card h2 {
   font-size: 1.4rem;
   font-weight: 500;
   margin: 0 0 0.5rem;
   color: var(--sc101-fg);
 }
+
 .sc101-finish-card p {
   color: var(--sc101-fg-muted);
   margin: 0 0 1.5rem;
   font-size: 0.9rem;
 }
+
 .sc101-finish-actions {
   display: flex;
   flex-direction: column;
   gap: 0.625rem;
 }
+
 .sc101-finish-actions button {
   width: 100%;
   justify-content: center;
 }
+
 /* Make sure the pane is a positioning context for the overlay */
 .sc101-tutorial-pane {
   position: relative;
@@ -1222,12 +1397,13 @@ body.is-dark pre[class*='language-'] {
 .sc101-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.55);
+  background: rgba(0, 0, 0, 0.55);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
 }
+
 .sc101-modal {
   background: var(--sc101-bg);
   border: 1px solid var(--sc101-border);
@@ -1236,8 +1412,9 @@ body.is-dark pre[class*='language-'] {
   max-height: 85vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.28);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.28);
 }
+
 .sc101-modal-header {
   display: flex;
   align-items: center;
@@ -1245,10 +1422,12 @@ body.is-dark pre[class*='language-'] {
   padding: 1rem 1.25rem 0.75rem;
   border-bottom: 1px solid var(--sc101-border);
 }
+
 .sc101-modal-header h2 {
   margin: 0;
   font-size: 1.125rem;
 }
+
 .sc101-modal-close {
   background: none;
   border: none;
@@ -1258,22 +1437,29 @@ body.is-dark pre[class*='language-'] {
   padding: 0.25rem 0.4rem;
   border-radius: 0.25rem;
 }
-.sc101-modal-close:hover { background: var(--sc101-hover); }
+
+.sc101-modal-close:hover {
+  background: var(--sc101-hover);
+}
+
 .sc101-modal-body {
   padding: 1rem 1.25rem;
   overflow-y: auto;
   flex: 1;
 }
+
 .sc101-modal-intro {
   color: var(--sc101-text-muted);
   margin: 0 0 1rem;
   font-size: 0.875rem;
 }
+
 .sc101-modal-loading {
   color: var(--sc101-text-muted);
   font-size: 0.875rem;
   padding: 0.5rem 0;
 }
+
 .sc101-setup-list {
   list-style: none;
   margin: 0 0 1rem;
@@ -1282,6 +1468,7 @@ body.is-dark pre[class*='language-'] {
   flex-direction: column;
   gap: 0.625rem;
 }
+
 .sc101-setup-item {
   display: flex;
   align-items: flex-start;
@@ -1291,16 +1478,36 @@ body.is-dark pre[class*='language-'] {
   border: 1px solid var(--sc101-border);
   color: var(--sc101-fg);
 }
-.sc101-setup-item.is-ok    { border-color: #0e8420; background: rgba(14,132,32,0.06); }
-.sc101-setup-item.is-missing { border-color: #c7162b; background: rgba(199,22,43,0.06); }
+
+.sc101-setup-item.is-ok {
+  border-color: #0e8420;
+  background: rgba(14, 132, 32, 0.06);
+}
+
+.sc101-setup-item.is-missing {
+  border-color: #c7162b;
+  background: rgba(199, 22, 43, 0.06);
+}
+
 .sc101-setup-status {
   font-size: 1rem;
   margin-top: 0.1rem;
   flex-shrink: 0;
 }
-.is-ok    .sc101-setup-status { color: #0e8420; }
-.is-missing .sc101-setup-status { color: #c7162b; }
-.sc101-setup-details { flex: 1; min-width: 0; }
+
+.is-ok .sc101-setup-status {
+  color: #0e8420;
+}
+
+.is-missing .sc101-setup-status {
+  color: #c7162b;
+}
+
+.sc101-setup-details {
+  flex: 1;
+  min-width: 0;
+}
+
 .sc101-setup-label {
   font-weight: 500;
   font-size: 0.85rem;
@@ -1310,11 +1517,13 @@ body.is-dark pre[class*='language-'] {
   gap: 0.5rem;
   flex-wrap: wrap;
 }
+
 .sc101-setup-version {
   font-size: 0.75rem;
   color: var(--sc101-fg-muted);
   font-weight: 400;
 }
+
 .sc101-setup-fix {
   margin-top: 0.375rem;
   display: flex;
@@ -1322,6 +1531,7 @@ body.is-dark pre[class*='language-'] {
   gap: 0.4rem;
   flex-wrap: wrap;
 }
+
 .sc101-setup-cmd {
   font-family: var(--sc101-mono);
   font-size: 0.78rem;
@@ -1330,6 +1540,7 @@ body.is-dark pre[class*='language-'] {
   padding: 0.15rem 0.4rem;
   border-radius: 0.25rem;
 }
+
 .sc101-setup-copy {
   background: none;
   border: 1px solid var(--sc101-border);
@@ -1339,13 +1550,18 @@ body.is-dark pre[class*='language-'] {
   font-size: 0.8rem;
   color: var(--sc101-fg-muted);
 }
-.sc101-setup-copy:hover { background: var(--sc101-bg-alt); }
+
+.sc101-setup-copy:hover {
+  background: var(--sc101-bg-alt);
+}
+
 .sc101-setup-docs {
   font-size: 0.78rem;
   color: var(--sc101-accent);
 }
+
 .sc101-setup-all-ok {
-  background: rgba(14,132,32,0.08);
+  background: rgba(14, 132, 32, 0.08);
   border: 1px solid #0e8420;
   color: #0e8420;
   border-radius: 0.375rem;
@@ -1353,6 +1569,7 @@ body.is-dark pre[class*='language-'] {
   font-size: 0.875rem;
   margin-bottom: 1rem;
 }
+
 .sc101-modal-footer {
   display: flex;
   gap: 0.5rem;
@@ -1360,6 +1577,40 @@ body.is-dark pre[class*='language-'] {
   padding-top: 0.75rem;
   border-top: 1px solid var(--sc101-border);
   margin-top: 0.5rem;
+}
+
+/* ── Teacher/student toast notifications ─────────────────────────────────── */
+.sc101-toast {
+  position: fixed;
+  top: 4.5rem;
+  right: 1.25rem;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.35);
+  font-size: 0.875rem;
+  max-width: 340px;
+  animation: sc101-toast-in 0.2s ease;
+  background: var(--sc101-bg-alt);
+  border: 1px solid var(--sc101-border);
+  color: var(--sc101-fg);
+}
+.sc101-toast--info { border-left: 4px solid var(--sc101-orange); }
+.sc101-toast--warn { border-left: 4px solid var(--sc101-fg-muted); }
+.sc101-toast-icon  { font-size: 1.15rem; flex-shrink: 0; }
+.sc101-toast-msg   { flex: 1; line-height: 1.4; }
+.sc101-toast-close {
+  background: none; border: none; cursor: pointer;
+  color: var(--sc101-fg-muted); font-size: 0.9rem; padding: 0 0.1rem;
+  flex-shrink: 0;
+}
+.sc101-toast-close:hover { color: var(--sc101-fg); }
+@keyframes sc101-toast-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 /* ── GitHub import ──────────────────────────────────────────────────────────── */
@@ -1373,22 +1624,230 @@ body.is-dark pre[class*='language-'] {
   color: var(--sc101-fg);
   font-family: inherit;
 }
+
 .sc101-import-input:focus {
   outline: none;
   border-color: var(--sc101-accent);
 }
-.sc101-import-input::placeholder { color: var(--sc101-fg-muted); }
+
+.sc101-import-input::placeholder {
+  color: var(--sc101-fg-muted);
+}
+
 .sc101-import-result {
   font-size: 0.8rem;
   border-radius: 0.3rem;
   padding: 0.4rem 0.5rem;
   border: 1px solid;
 }
-.sc101-import-result.is-ok    { border-color: #0e8420; background: rgba(14,132,32,0.07); color: var(--sc101-fg); }
-.sc101-import-result.is-error { border-color: #c7162b; background: rgba(199,22,43,0.07); color: var(--sc101-fg); }
+
+.sc101-import-result.is-ok {
+  border-color: #0e8420;
+  background: rgba(14, 132, 32, 0.07);
+  color: var(--sc101-fg);
+}
+
+.sc101-import-result.is-error {
+  border-color: #c7162b;
+  background: rgba(199, 22, 43, 0.07);
+  color: var(--sc101-fg);
+}
+
 .sc101-import-warnings {
   margin: 0.3rem 0 0;
   padding-left: 1.1rem;
   font-size: 0.75rem;
   color: var(--sc101-fg-muted);
+}
+
+/* ── Multi-user / Shared Terminal Session UI ──────────────────────────────── */
+
+/* Presence indicators in terminal header */
+.sc101-participants {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+.sc101-participant-badge {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  position: relative;
+  border: 2px solid transparent;
+  transition: transform 0.15s ease;
+}
+
+.sc101-participant-badge:hover {
+  transform: scale(1.1);
+}
+
+.sc101-participant-badge--teacher {
+  background: var(--sc101-orange);
+  color: white;
+  border-color: #ffd32a;
+}
+
+.sc101-participant-badge--student {
+  background: #0066cc;
+  color: white;
+}
+
+.sc101-participant-badge--viewer {
+  background: #666;
+  color: white;
+}
+
+.sc101-crown {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  font-size: 12px;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+}
+
+/* Read-only badge next to container name */
+.sc101-readonly-badge {
+  margin-left: 0.5rem;
+  padding: 0.1rem 0.4rem;
+  background: #f99b11;
+  color: white;
+  font-size: 0.7rem;
+  border-radius: 3px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+/* Read-only overlay at bottom of terminal */
+.sc101-readonly-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 0.5rem 1rem;
+  background: rgba(249, 155, 17, 0.15);
+  border-top: 2px solid #f99b11;
+  text-align: center;
+  font-size: 0.875rem;
+  color: #f99b11;
+  font-weight: 500;
+  backdrop-filter: blur(2px);
+  z-index: 10;
+}
+
+body.is-dark .sc101-readonly-overlay {
+  background: rgba(249, 155, 17, 0.25);
+}
+
+/* Enable write mode button for teachers */
+.sc101-enable-write-btn {
+  background: var(--sc101-orange);
+  color: white;
+  border: none;
+  padding: 0.4rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.1s ease;
+  margin-left: 0.5rem;
+}
+
+.sc101-enable-write-btn:hover:not(:disabled) {
+  background: var(--sc101-orange-hover);
+  transform: translateY(-1px);
+}
+
+.sc101-enable-write-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.sc101-enable-write-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Next tutorial "prompt" button styling */
+.sc101-finish-next-title {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 400;
+  opacity: 0.85;
+  margin-top: 0.15rem;
+}
+
+.sc101-finish-restart {
+  background: transparent;
+  border: 1px solid var(--sc101-border);
+  color: var(--sc101-fg-muted);
+  font-size: 0.8rem;
+  padding: 0.35rem 0.75rem;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+
+.sc101-finish-restart:hover {
+  background-color: var(--sc101-bg-alt);
+  border-color: var(--sc101-fg-muted);
+}
+
+/* ── Teacher notification: student left the shared session ─────────────────── */
+.sc101-student-left-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 500;
+  animation: sc101-panel-in 0.15s ease;
+}
+
+.sc101-student-left-modal {
+  background: var(--sc101-bg);
+  border: 2px solid var(--sc101-orange);
+  border-radius: 8px;
+  padding: 2rem 2.5rem;
+  max-width: 400px;
+  width: 90%;
+  text-align: center;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+  isolation: isolate;
+}
+
+.sc101-student-left-icon {
+  font-size: 2.5rem;
+  line-height: 1;
+  margin-bottom: 0.75rem;
+}
+
+.sc101-student-left-modal h2 {
+  font-size: 1.25rem;
+  font-weight: 500;
+  margin: 0 0 0.5rem;
+  color: var(--sc101-fg);
+}
+
+.sc101-student-left-modal p {
+  color: var(--sc101-fg-muted);
+  font-size: 0.875rem;
+  margin: 0 0 1.5rem;
+  line-height: 1.55;
+}
+
+.sc101-student-left-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.sc101-student-left-actions button {
+  width: 100%;
+  justify-content: center;
 }

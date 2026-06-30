@@ -2,7 +2,7 @@
 By default, snaps might use `devmode`. To make it production-ready, we use **strict** confinement. 
 
 Run this to update your `snapcraft.yaml`:
-```yaml
+```yaml run
 cat <<EOF > snap/snapcraft.yaml
 name: my-hello-snap
 base: core22
@@ -23,23 +23,23 @@ apps:
   hello:
     command: hello.sh
 EOF
-``` run
+``` 
 
 ### Build the Snap
 Now, let's build it. This will take a minute as it sets up the build environment:
-```bash
+```bash run
 snapcraft pack
-``` run
+``` 
 
 ### Install and Test
 Once finished, install your local snap file:
-```bash
+```bash run 
 sudo snap install \
   my-hello-snap_0.1_amd64.snap \
   --dangerous
-``` run
+``` 
 
 Run it:
-```bash
+```bash run
 my-hello-snap.hello
-``` run
+``` 

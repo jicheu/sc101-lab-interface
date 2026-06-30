@@ -10,6 +10,12 @@ export default defineConfig({
       '/ws': {
         target: 'ws://localhost:3001',
         ws: true,
+        // Disable compression negotiation so PTY binary frames pass through cleanly
+        configure: (proxy) => {
+          proxy.on('proxyReqWs', (proxyReq) => {
+            proxyReq.removeHeader('sec-websocket-extensions')
+          })
+        },
       },
     },
   },

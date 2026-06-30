@@ -24,33 +24,82 @@ function run(args) {
   return result.stdout.trim()
 }
 
-function containerExists(name) {
-  try { run(['info', name]); return true } catch { return false }
+function containerRunning(name) {
+  // lxc list/info/query all return empty stdout from node (snap pipe/TTY bug).
+  // lxc exec -- true: exit 0 = running, non-0 = stopped or non-existent.
+  const r = spawnSync('lxc', ['exec', name, '--', 'true'], { encoding: 'utf8' })
+  return r.status === 0
 }
 
-function containerRunning(name) {
-  try {
-    const out = run(['list', name, '--format', 'csv', '-c', 's'])
-    return out.trim() === 'RUNNING'
-  } catch { return false }
+function containerExists(name) {
+  // If running, it exists.
+  if (containerRunning(name)) return true
+  // Try to start it — exit 0 means it existed but was stopped.
+  // Any failure means it doesn't exist (or some other error, treated as non-existent).
+  const s = spawnSync('lxc', ['start', name], { encoding: 'utf8' })
+  if (s.status === 0) {
+    // Existed and we just started it — stop it so ensureContainerForUser controls the lifecycle
+    spawnSync('lxc', ['stop', '--force', name], { encoding: 'utf8' })
+    return true
+  }
+  return false
 }
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+// In-flight start promises: prevent concurrent starts for the same container
+const startingContainers = new Map()
+
 async function ensureContainerForUser(containerName) {
-  if (!containerExists(containerName)) {
-    console.log(`[lxd] Creating container ${containerName}…`)
-    run(['launch', 'ubuntu:24.04', containerName])
-    await sleep(3000)
-    console.log(`[lxd] Container ${containerName} created.`)
-  } else if (!containerRunning(containerName)) {
-    console.log(`[lxd] Starting container ${containerName}…`)
-    run(['start', containerName])
-    await sleep(2000)
-  } else {
+  // If already being started by another concurrent WS connection, wait for it
+  if (startingContainers.has(containerName)) {
+    await startingContainers.get(containerName)
+    return
+  }
+
+  if (containerRunning(containerName)) {
     console.log(`[lxd] Container ${containerName} already running.`)
+    return
+  }
+
+  const startPromise = (async () => {
+    // Try lxc start first — succeeds if container exists but is stopped.
+    // If it fails, assume the container doesn't exist yet and launch it.
+    console.log(`[lxd] Starting container ${containerName}…`)
+    const startR = spawnSync('lxc', ['start', containerName], { encoding: 'utf8' })
+    if (startR.status !== 0) {
+      // Container doesn't exist — create and start in one step.
+      // Note: lxc launch exits 1 from node (snap pipe/TTY bug) even on success,
+      // so we ignore the exit code and verify with containerRunning() afterwards.
+      console.log(`[lxd] Container ${containerName} not found, launching…`)
+      spawnSync('lxc', ['launch', 'ubuntu:24.04', containerName], { encoding: 'utf8' })
+      // Wait up to 15s for the container to reach RUNNING state
+      for (let i = 0; i < 15; i++) {
+        await sleep(1000)
+        if (containerRunning(containerName)) break
+      }
+      console.log(`[lxd] Container ${containerName} created.`)
+    } else {
+      // Existing container starting — wait up to 5s
+      for (let i = 0; i < 5; i++) {
+        await sleep(1000)
+        if (containerRunning(containerName)) break
+      }
+    }
+    // Final check
+    if (!containerRunning(containerName)) {
+      throw new Error(`Container ${containerName} failed to reach RUNNING state`)
+    }
+    console.log(`[lxd] Container ${containerName} ready.`)
+  })()
+
+  startingContainers.set(containerName, startPromise)
+  try {
+    await startPromise
+  } finally {
+    startingContainers.delete(containerName)
   }
 }
 
