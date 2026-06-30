@@ -57,6 +57,8 @@ export default function LoginScreen({ onSession }) {
       try { data = await res.json() } catch { data = {} }
       if (!res.ok) throw new Error(data.error || `Server error ${res.status}`)
       localStorage.setItem('sc101_session_id', data.id)
+      if (asTeacher) localStorage.setItem('sc101_is_teacher', '1')
+      else localStorage.removeItem('sc101_is_teacher')
       // Add isTeacher flag to session data
       onSession({ ...data, isTeacher: asTeacher })
     } catch (err) {
@@ -67,6 +69,7 @@ export default function LoginScreen({ onSession }) {
 
   const resumeTeacher = (session) => {
     localStorage.setItem('sc101_session_id', session.id)
+    localStorage.setItem('sc101_is_teacher', '1')
     onSession({ ...session, isTeacher: true })
   }
 
@@ -84,6 +87,7 @@ export default function LoginScreen({ onSession }) {
 
   const resume = (session) => {
     localStorage.setItem('sc101_session_id', session.id)
+    localStorage.removeItem('sc101_is_teacher')
     onSession(session)
   }
 

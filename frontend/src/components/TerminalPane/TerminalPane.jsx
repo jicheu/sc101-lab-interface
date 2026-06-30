@@ -3,7 +3,7 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 
-export default function TerminalPane({ session, onReady }) {
+export default function TerminalPane({ session, onReady, onSessionEvent }) {
   const containerRef = useRef(null)
   const termRef = useRef(null)
   const wsRef = useRef(null)
@@ -15,6 +15,7 @@ export default function TerminalPane({ session, onReady }) {
   const [participants, setParticipants] = useState([])
   const [canWrite, setCanWrite] = useState(true)
   const [enablingWrite, setEnablingWrite] = useState(false)
+  const [connectionError, setConnectionError] = useState('')
 
   useEffect(() => {
     const wsUrl = `ws://${window.location.host}/ws/terminal?session=${session.id}&username=${encodeURIComponent(session.username)}`
@@ -46,6 +47,18 @@ export default function TerminalPane({ session, onReady }) {
     }
 
     let destroyed = false
+    let reconnectTimer = null
+
+    // handleResize is defined once here (not inside connect) so it can be
+    // reliably removed in cleanup and not multiply-registered on reconnect.
+    const handleResize = () => {
+      fitAddon.fit()
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        const { cols, rows } = term
+        wsRef.current.send(JSON.stringify({ type: 'resize', cols, rows }))
+      }
+    }
+    window.addEventListener('resize', handleResize)
 
     const connect = () => {
       if (destroyed) return
@@ -54,6 +67,7 @@ export default function TerminalPane({ session, onReady }) {
 
       ws.onopen = () => {
         setConnected(true)
+        setConnectionError('')
         fitAddon.fit()
         const { cols, rows } = term
         ws.send(JSON.stringify({ type: 'resize', cols, rows }))
@@ -61,30 +75,52 @@ export default function TerminalPane({ session, onReady }) {
         onReadyRef.current?.(sendCommand)
       }
 
-      ws.onmessage = (e) => {
-        // Try to parse as JSON first (for presence/error messages)
+      ws.onmessage = async (e) => {
+        // Binary frames (ArrayBuffer or Blob) are always raw terminal data
+        if (e.data instanceof ArrayBuffer) {
+          term.write(new Uint8Array(e.data))
+          return
+        }
+        if (e.data instanceof Blob) {
+          const buf = await e.data.arrayBuffer()
+          term.write(new Uint8Array(buf))
+          return
+        }
+        // Text frame — try JSON first (presence/session-event/error), else raw terminal
         try {
           const msg = JSON.parse(e.data)
           if (msg.type === 'presence') {
             setParticipants(msg.participants || [])
-            // Update own write permission
             const self = msg.participants?.find(p => p.username === session.username)
             if (self) setCanWrite(self.canWrite)
+          } else if (msg.type === 'session-event') {
+            onSessionEvent?.(msg)
           } else if (msg.type === 'error') {
-            // Show error notification in terminal
             term.write(`\r\n\x1b[31m[Error: ${msg.message}]\x1b[0m\r\n`)
+          } else {
+            term.write(e.data)
           }
         } catch {
-          // Not JSON - it's raw terminal data
+          // Not JSON — raw terminal text data
           term.write(e.data)
         }
       }
 
-      ws.onclose = () => {
+      ws.onclose = (event) => {
         setConnected(false)
+        if (event.code === 4001) {
+          setConnectionError('Session missing or expired. Please log in again.')
+          localStorage.removeItem('sc101_session_id')
+          localStorage.removeItem('sc101_is_teacher')
+          sessionStorage.removeItem('sc101_teacher_session_id')
+          return
+        }
+        if (event.code === 4002) {
+          setConnectionError('Container failed to start. Please retry or recreate the session.')
+          return
+        }
         if (!destroyed) {
-          term.writeln('\r\n\x1b[31m[disconnected — retrying in 3s…]\x1b[0m')
-          setTimeout(connect, 3000)
+          reconnectTimer = setTimeout(connect, 3000)
         }
       }
 
@@ -93,29 +129,26 @@ export default function TerminalPane({ session, onReady }) {
 
     connect()
 
+    // Wire keyboard input from xterm → WebSocket
     term.onData((data) => {
       if (wsRef.current?.readyState === WebSocket.OPEN) {
         wsRef.current.send(JSON.stringify({ type: 'input', data }))
       }
     })
 
-    const handleResize = () => {
-      fitAddon.fit()
-      if (wsRef.current?.readyState === WebSocket.OPEN) {
-        const { cols, rows } = term
-        wsRef.current.send(JSON.stringify({ type: 'resize', cols, rows }))
-      }
-    }
-
-    window.addEventListener('resize', handleResize)
-
     return () => {
       destroyed = true
+      clearTimeout(reconnectTimer)
       window.removeEventListener('resize', handleResize)
-      wsRef.current?.close()
+      const ws = wsRef.current
+      if (ws) {
+        ws.onclose = null  // prevent reconnect loop on intentional teardown
+        ws.close()
+        wsRef.current = null
+      }
       term.dispose()
     }
-  }, [session.id])
+  }, [session.id, session.username, onSessionEvent])
 
   const isOwner = session.owner?.username === session.username
   const ownerName = session.owner?.username || session.username
@@ -183,6 +216,12 @@ export default function TerminalPane({ session, onReady }) {
           ref={containerRef}
           onClick={() => termRef.current?.focus()}
         />
+
+        {connectionError && (
+          <div className="sc101-readonly-overlay" style={{ background: 'rgba(0,0,0,0.6)' }}>
+            <span style={{ color: '#f8d7da' }}>⚠️ {connectionError}</span>
+          </div>
+        )}
         
         {!canWrite && (
           <div className="sc101-readonly-overlay">

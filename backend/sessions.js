@@ -21,16 +21,17 @@ function save(sessions) {
 // Clean up duplicate participants from a session
 function deduplicateParticipants(session) {
   if (!session.participants || session.participants.length === 0) return session
-  
+
   // Keep only the most recent entry for each username
   const seen = new Map()
   for (const p of session.participants) {
-    const existing = seen.get(p.username)
-    if (!existing || new Date(p.joinedAt) > new Date(existing.joinedAt)) {
-      seen.set(p.username, p)
+    const key = p.username
+    const existing = seen.get(key)
+    if (!existing || new Date(p.joinedAt || 0) > new Date(existing.joinedAt || 0)) {
+      seen.set(key, p)
     }
   }
-  
+
   return {
     ...session,
     participants: Array.from(seen.values())
@@ -165,7 +166,7 @@ function join(id, { username, role = 'student' }) {
   // Check if it's the owner
   if (s.owner?.username === username) return { error: 'You are the owner of this session' }
 
-  // If already joined, remove old entry (rejoin scenario)
+  // If already joined, remove old entry (rejoin scenario) and dedupe
   let participants = s.participants.filter(p => p.username !== username)
   
   // Check max participants (only for new joins)

@@ -1529,3 +1529,52 @@ body.is-dark .sc101-readonly-overlay {
   background-color: var(--sc101-bg-alt);
   border-color: var(--sc101-fg-muted);
 }
+
+/* ── Teacher notification: student left the shared session ─────────────────── */
+.sc101-student-left-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 500;
+  animation: sc101-panel-in 0.15s ease;
+}
+.sc101-student-left-modal {
+  background: var(--sc101-bg);
+  border: 2px solid var(--sc101-orange);
+  border-radius: 8px;
+  padding: 2rem 2.5rem;
+  max-width: 400px;
+  width: 90%;
+  text-align: center;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+  isolation: isolate;
+}
+.sc101-student-left-icon {
+  font-size: 2.5rem;
+  line-height: 1;
+  margin-bottom: 0.75rem;
+}
+.sc101-student-left-modal h2 {
+  font-size: 1.25rem;
+  font-weight: 500;
+  margin: 0 0 0.5rem;
+  color: var(--sc101-fg);
+}
+.sc101-student-left-modal p {
+  color: var(--sc101-fg-muted);
+  font-size: 0.875rem;
+  margin: 0 0 1.5rem;
+  line-height: 1.55;
+}
+.sc101-student-left-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+.sc101-student-left-actions button {
+  width: 100%;
+  justify-content: center;
+}

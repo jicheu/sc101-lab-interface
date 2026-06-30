@@ -1,14 +1,43 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 export default function TeacherDashboard({ teacherSession, onJoinSession, onLogout }) {
   const [sessions, setSessions] = useState([])
   const [loading, setLoading] = useState(true)
+  const wsRef = useRef(null)
 
   useEffect(() => {
+    // Prime with initial fetch (fallback)
     loadSessions()
-    // Refresh every 5 seconds
-    const interval = setInterval(loadSessions, 5000)
-    return () => clearInterval(interval)
+
+    // Live updates via WebSocket
+    const ws = new WebSocket(`ws://${window.location.host}/ws/sessions`)
+    wsRef.current = ws
+
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data)
+        if (msg.type === 'sessions' && Array.isArray(msg.sessions)) {
+          const studentSessions = msg.sessions.filter(s => 
+            s.id !== teacherSession.id && 
+            s.username && 
+            !s.username.toLowerCase().includes('teacher')
+          )
+          setSessions(studentSessions)
+          setLoading(false)
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+
+    ws.onclose = () => {
+      wsRef.current = null
+    }
+
+    return () => {
+      wsRef.current?.close()
+      wsRef.current = null
+    }
   }, [])
 
   const loadSessions = () => {
@@ -43,6 +72,12 @@ export default function TeacherDashboard({ teacherSession, onJoinSession, onLogo
         alert(`Failed to join: ${result.error}`)
         return
       }
+
+      // Persist the student's session ID so refresh restores the shared view
+      localStorage.setItem('sc101_session_id', result.session.id)
+      localStorage.setItem('sc101_is_teacher', '1')
+      // Persist the teacher's own session ID so we can go back
+      sessionStorage.setItem('sc101_teacher_session_id', teacherSession.id)
 
       // Update local session to point to the student's session
       const updatedSession = {

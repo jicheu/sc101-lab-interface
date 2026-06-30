@@ -146,6 +146,7 @@ app.post('/api/sessions', (req, res) => {
     const { username, tutorialId } = req.body || {}
     if (!username || !username.trim()) return res.status(400).json({ error: 'username required' })
     const session = sessions.create({ username: username.trim(), tutorialId })
+    broadcastSessionsList()
     res.status(201).json(session)
   } catch (err) {
     console.error('[api] POST /api/sessions error:', err)
@@ -163,6 +164,7 @@ app.post('/api/sessions/teaching', (req, res) => {
       tutorialId,
       allowStudentWrite: !!allowStudentWrite
     })
+    broadcastSessionsList()
     res.status(201).json(session)
   } catch (err) {
     console.error('[api] POST /api/sessions/teaching error:', err)
@@ -177,6 +179,7 @@ app.post('/api/sessions/:id/join', (req, res) => {
     if (!username || !username.trim()) return res.status(400).json({ error: 'username required' })
     const result = sessions.join(req.params.id, { username: username.trim(), role: role || 'student' })
     if (result.error) return res.status(400).json(result)
+    broadcastSessionsList()
     res.status(200).json(result)
   } catch (err) {
     console.error('[api] POST /api/sessions/:id/join error:', err)
@@ -189,8 +192,15 @@ app.post('/api/sessions/:id/leave', (req, res) => {
   try {
     const { username } = req.body || {}
     if (!username || !username.trim()) return res.status(400).json({ error: 'username required' })
+    const sessionBefore = sessions.get(req.params.id)
     const session = sessions.leave(req.params.id, username.trim())
     if (!session) return res.status(404).json({ error: 'Session not found' })
+    if (sessionBefore?.containerName) {
+      broadcastPresence(sessionBefore.containerName)
+      const role = sessionBefore.participants?.find(p => p.username === username)?.role || 'teacher'
+      broadcastSessionEvent(sessionBefore.containerName, { event: `${role}-left`, username })
+    }
+    broadcastSessionsList()
     res.json(session)
   } catch (err) {
     console.error('[api] POST /api/sessions/:id/leave error:', err)
@@ -232,8 +242,16 @@ app.get('/api/sessions/lookup', (req, res) => {
 
 app.patch('/api/sessions/:id', (req, res) => {
   const { currentStep, tutorialId, totalSteps, status } = req.body || {}
+  const before = sessions.get(req.params.id)
   const s = sessions.update(req.params.id, { currentStep, tutorialId, totalSteps, status })
   if (!s) return res.status(404).json({ error: 'Session not found' })
+  if (before?.containerName) {
+    if (before.tutorialId && tutorialId === null) {
+      broadcastSessionEvent(before.containerName, { event: 'student-left', username: before.owner?.username })
+    }
+    broadcastPresence(before.containerName)
+  }
+  broadcastSessionsList()
   res.json(s)
 })
 
@@ -244,6 +262,7 @@ app.delete('/api/sessions/:id', (req, res) => {
   try { stopContainer(s.containerName) } catch (e) {
     console.error(`[api] DELETE session — container stop failed: ${e.message}`)
   }
+  broadcastSessionsList()
   res.json({ ok: true })
 })
 
@@ -773,6 +792,7 @@ const server = http.createServer(app)
 
 // Shared terminal management: Map containerName → { pty, connections: Set, resizeState }
 const sharedTerminals = new Map()
+const sessionSubscribers = new Set()
 
 function broadcastPresence(containerName) {
   const shared = sharedTerminals.get(containerName)
@@ -803,10 +823,31 @@ function broadcastPresence(containerName) {
   }
 }
 
+function broadcastSessionEvent(containerName, event) {
+  const shared = sharedTerminals.get(containerName)
+  if (!shared) return
+  const message = JSON.stringify({ type: 'session-event', ...event })
+  for (const conn of shared.connections) {
+    if (conn.ws.readyState === WebSocket.OPEN) {
+      conn.ws.send(message)
+    }
+  }
+}
+
+function broadcastSessionsList() {
+  const payload = JSON.stringify({ type: 'sessions', sessions: sessions.list() })
+  for (const ws of sessionSubscribers) {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(payload)
+    }
+  }
+}
+
 const { IDLE_STOP_DELAY } = require('./lxd')
 
-// Path: /ws/terminal  — Extract session & username from query params
-const wss = new WebSocketServer({ server, path: '/ws/terminal' })
+// Path: /ws/terminal  — use noServer mode so the upgrade is handled exclusively
+// by us, preventing Express from sending a 400/404 HTTP response on the same socket.
+const wss = new WebSocketServer({ noServer: true, perMessageDeflate: false })
 
 wss.on('connection', async (ws, req) => {
   // Extract sessionId and username from URL query params
@@ -861,9 +902,12 @@ wss.on('connection', async (ws, req) => {
 
     // Broadcast PTY output to ALL connected clients
     shell.onData((data) => {
+      // Send as a Buffer (binary frame) to avoid text-frame UTF-8 encoding issues
+      // with terminal escape sequences that contain raw bytes.
+      const buf = Buffer.from(data, 'binary')
       for (const conn of shared.connections) {
         if (conn.ws.readyState === WebSocket.OPEN) {
-          conn.ws.send(data)
+          conn.ws.send(buf)
         }
       }
     })
@@ -881,7 +925,15 @@ wss.on('connection', async (ws, req) => {
   }
 
   // Add this connection to the shared set
-  const connection = { ws, username: username || session.username, role, canWrite }
+  const userName = username || session.username
+  // Enforce single active connection per username (replace old one)
+  for (const conn of Array.from(shared.connections)) {
+    if (conn.username === userName) {
+      try { conn.ws.close(4000, 'Replaced by new connection') } catch {}
+      shared.connections.delete(conn)
+    }
+  }
+  const connection = { ws, username: userName, role, canWrite, lastActivity: Date.now() }
   shared.connections.add(connection)
 
   onConnect(containerName)
@@ -891,6 +943,7 @@ wss.on('connection', async (ws, req) => {
 
   // Handle messages from this client
   ws.on('message', (raw) => {
+    connection.lastActivity = Date.now()  // track activity for teacher timeout
     let msg
     try { msg = JSON.parse(raw) } catch { return }
 
@@ -918,13 +971,26 @@ wss.on('connection', async (ws, req) => {
   })
 
   ws.on('close', () => {
-    console.log(`[ws] ${username || session.username} disconnected from ${containerName}`)
     shared.connections.delete(connection)
+
+    // If the owner (student) disconnected while others are still connected,
+    // mark their session as no-longer-in-tutorial so the teacher gets notified.
+    if (isOwner && shared.connections.size > 0) {
+      try {
+        const before = sessions.get(session.id)
+        if (before?.tutorialId) {
+          sessions.update(session.id, { tutorialId: null })
+          console.log(`[ws] Owner ${userName} left — set tutorialId=null for session ${session.id}`)
+          broadcastSessionEvent(containerName, { event: 'student-left', username: userName })
+        }
+      } catch (e) { console.error(`[ws] Failed to update owner session: ${e.message}`) }
+    }
 
     // Remove participant from session if they're not the owner
     if (!isOwner && role === 'teacher') {
-      sessions.leave(session.id, username || session.username)
-      console.log(`[ws] Removed teacher ${username || session.username} from session ${session.id}`)
+      sessions.leave(session.id, userName)
+      console.log(`[ws] Removed teacher ${userName} from session ${session.id}`)
+      broadcastSessionEvent(containerName, { event: 'teacher-left', username: userName })
     }
 
     // If no one left, clean up after delay
@@ -938,9 +1004,20 @@ wss.on('connection', async (ws, req) => {
         }
       }, IDLE_STOP_DELAY)
     } else {
-      // Still have connections, just update presence
       broadcastPresence(containerName)
     }
+  })
+})
+
+// Sessions websocket for dashboards (instant updates instead of polling)
+const wssSessions = new WebSocketServer({ noServer: true, perMessageDeflate: false })
+wssSessions.on('connection', (ws) => {
+  sessionSubscribers.add(ws)
+  // Send initial snapshot
+  ws.send(JSON.stringify({ type: 'sessions', sessions: sessions.list() }))
+
+  ws.on('close', () => {
+    sessionSubscribers.delete(ws)
   })
 })
 
@@ -966,6 +1043,57 @@ function runSessionExpiry() {
 
 const EXPIRY_CHECK_INTERVAL = 15 * 60_000  // every 15 minutes
 setInterval(runSessionExpiry, EXPIRY_CHECK_INTERVAL).unref()
+
+// ── Teacher timeout ──────────────────────────────────────────────────────────
+// If a teacher participant hasn't been active (no WebSocket messages) for
+// 60 minutes, auto-remove them from the session. Removes the 👑 badge and
+// cleans up stale participants.
+const TEACHER_TIMEOUT_MS = 60 * 60_000  // 60 minutes
+const TEACHER_CHECK_INTERVAL = 60_000   // check every minute
+
+function runTeacherTimeout() {
+  const now = Date.now()
+  for (const [containerName, shared] of sharedTerminals) {
+    const staleTeachers = []
+    for (const conn of shared.connections) {
+      if (conn.role === 'teacher' && (now - (conn.lastActivity || now)) > TEACHER_TIMEOUT_MS) {
+        staleTeachers.push(conn)
+      }
+    }
+    for (const conn of staleTeachers) {
+      console.log(`[teacher-timeout] ${conn.username} inactive >60min — removing from ${containerName}`)
+      try {
+        const session = sessions.list().find(s => s.containerName === containerName)
+        if (session) sessions.leave(session.id, conn.username)
+      } catch (e) { console.error(`[teacher-timeout] Error removing participant: ${e.message}`) }
+      shared.connections.delete(conn)
+      if (conn.ws.readyState === WebSocket.OPEN) {
+        conn.ws.close(4003, 'Teacher timeout — 60min inactivity')
+      }
+    }
+    if (staleTeachers.length > 0) {
+      broadcastPresence(containerName)
+      broadcastSessionEvent(containerName, { event: 'teacher-left', usernames: staleTeachers.map(t => t.username) })
+    }
+  }
+}
+setInterval(runTeacherTimeout, TEACHER_CHECK_INTERVAL).unref()
+
+// Route WebSocket upgrades manually so Express never touches the WS socket
+server.on('upgrade', (req, socket, head) => {
+  const { pathname } = new URL(req.url, 'http://localhost')
+  if (pathname === '/ws/terminal') {
+    wss.handleUpgrade(req, socket, head, (ws) => {
+      wss.emit('connection', ws, req)
+    })
+  } else if (pathname === '/ws/sessions') {
+    wssSessions.handleUpgrade(req, socket, head, (ws) => {
+      wssSessions.emit('connection', ws, req)
+    })
+  } else {
+    socket.destroy()
+  }
+})
 
 server.listen(PORT, () => {
   console.log(`[server] Backend listening on http://localhost:${PORT}`)
