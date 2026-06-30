@@ -258,10 +258,10 @@ app.patch('/api/sessions/:id', (req, res) => {
 app.delete('/api/sessions/:id', (req, res) => {
   const s = sessions.get(req.params.id)
   if (!s) return res.status(404).json({ error: 'Session not found' })
-  // Stop the container but keep the session record so it can still be resumed later.
   try { stopContainer(s.containerName) } catch (e) {
     console.error(`[api] DELETE session — container stop failed: ${e.message}`)
   }
+  sessions.remove(req.params.id)
   broadcastSessionsList()
   res.json({ ok: true })
 })
