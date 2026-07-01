@@ -4,7 +4,9 @@ const fs = require('fs')
 const path = require('path')
 const crypto = require('crypto')
 
-const DATA_FILE = path.join(__dirname, 'data', 'sessions.json')
+const DATA_FILE = process.env.SNAP_DATA 
+  ? path.join(process.env.SNAP_DATA, 'data', 'sessions.json') 
+  : path.join(__dirname, 'data', 'sessions.json')
 
 function load() {
   if (!fs.existsSync(DATA_FILE)) return {}

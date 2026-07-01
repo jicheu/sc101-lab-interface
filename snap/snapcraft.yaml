@@ -33,9 +33,6 @@ parts:
       curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
       apt-get install -y nodejs
       
-      # Patch sessions.js for snap data directory
-      sed -i "s|path.join(__dirname, 'data', 'sessions.json')|process.env.SNAP_DATA ? path.join(process.env.SNAP_DATA, 'data', 'sessions.json') : path.join(__dirname, 'data', 'sessions.json')|g" backend/sessions.js
-      
       # Build frontend (even though we won't serve it, the backend may reference it)
       cd frontend
       npm ci
