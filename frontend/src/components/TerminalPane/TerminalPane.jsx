@@ -179,7 +179,6 @@ export default function TerminalPane({ session, onReady, onSessionEvent }) {
   }
 
   const handleDisableWriteMode = async () => {
-    if (!isTeacher) return
     setEnablingWrite(true)
     try {
       const result = await fetch(`/api/sessions/${session.id}/participants/${encodeURIComponent(session.username)}/permissions`, {
@@ -263,9 +262,9 @@ export default function TerminalPane({ session, onReady, onSessionEvent }) {
           </div>
         )}
 
-        {isTeacher && canWrite && (
+        {canWrite && !isOwner && (
           <div className="sc101-readonly-overlay" style={{ background: 'rgba(0, 128, 0, 0.15)', borderTopColor: '#4caf50', color: '#4caf50' }}>
-            <span style={{ marginRight: '0.5rem' }}>👑 Teacher in write mode — </span>
+            <span style={{ marginRight: '0.5rem' }}>👑 Write mode active — </span>
             <button
               onClick={handleDisableWriteMode}
               disabled={enablingWrite}
