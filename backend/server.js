@@ -12,7 +12,7 @@ const sessions = require('./sessions')
 
 const matter = require('gray-matter')
 
-const PORT = 3001
+const PORT = process.env.SNAP ? 3001 : (process.env.PORT || 3002)
 // Tutorials directory resolution (in priority order):
 //   1. $SNAP_COMMON/tutorials  — user-editable override (writable, survives snap updates)
 //   2. $SNAP/tutorials          — content interface mount from sc101-tutorials snap

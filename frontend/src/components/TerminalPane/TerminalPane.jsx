@@ -178,6 +178,26 @@ export default function TerminalPane({ session, onReady, onSessionEvent }) {
     }
   }
 
+  const handleDisableWriteMode = async () => {
+    if (!isTeacher) return
+    setEnablingWrite(true)
+    try {
+      const result = await fetch(`/api/sessions/${session.id}/participants/${encodeURIComponent(session.username)}/permissions`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ canWrite: false })
+      }).then(r => r.json())
+      
+      if (result.error) {
+        alert(`Failed to disable write mode: ${result.error}`)
+      }
+    } catch (err) {
+      alert(`Error: ${err.message}`)
+    } finally {
+      setEnablingWrite(false)
+    }
+  }
+
   return (
     <div className="sc101-terminal-pane">
       <div className="sc101-terminal-header">
@@ -240,6 +260,21 @@ export default function TerminalPane({ session, onReady, onSessionEvent }) {
             ) : (
               <>👁️ View-only mode — {ownerName} is controlling the terminal</>
             )}
+          </div>
+        )}
+
+        {isTeacher && canWrite && (
+          <div className="sc101-readonly-overlay" style={{ background: 'rgba(0, 128, 0, 0.15)', borderTopColor: '#4caf50', color: '#4caf50' }}>
+            <span style={{ marginRight: '0.5rem' }}>👑 Teacher in write mode — </span>
+            <button
+              onClick={handleDisableWriteMode}
+              disabled={enablingWrite}
+              className="sc101-enable-write-btn"
+              style={{ background: '#4caf50' }}
+              title="Return to read-only mode"
+            >
+              {enablingWrite ? '...' : '👁️ Return to Read-only'}
+            </button>
           </div>
         )}
       </div>
