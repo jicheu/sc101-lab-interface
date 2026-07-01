@@ -1,0 +1,112 @@
+name: sc101-lab-interface
+version: '0.1.0'
+summary: Interactive learning platform with live terminal via LXD
+description: |
+  A KillerCoda-style interactive learning platform that provides
+  markdown-based tutorials with live terminal sessions powered by LXD containers.
+  Features include multi-user sessions, teacher-student terminal sharing,
+  and real-time collaboration.
+license: ISC
+grade: stable
+confinement: strict
+base: core24
+
+parts:
+  sc101-lab-interface:
+    plugin: nil
+    source: .
+    build-packages:
+      - build-essential
+      - python3
+      - curl
+      - git
+      - ca-certificates
+      - gnupg
+    stage-packages:
+      - libc6
+      - libgcc-s1
+      - libstdc++6
+    override-build: |
+      craftctl default
+      
+      # Install Node.js 20.x from NodeSource
+      curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+      apt-get install -y nodejs
+      
+      # Patch sessions.js for snap data directory
+      sed -i "s|path.join(__dirname, 'data', 'sessions.json')|process.env.SNAP_DATA ? path.join(process.env.SNAP_DATA, 'data', 'sessions.json') : path.join(__dirname, 'data', 'sessions.json')|g" backend/sessions.js
+      
+      # Build frontend (even though we won't serve it, the backend may reference it)
+      cd frontend
+      npm ci
+      npm run build
+      cd ..
+      
+      # Install backend dependencies
+      cd backend
+      npm ci --omit=dev
+      cd ..
+      
+      # Copy built files to install location
+      cp -r backend $CRAFT_PART_INSTALL/
+      cp -r frontend/dist $CRAFT_PART_INSTALL/frontend
+      cp snap-start.sh $CRAFT_PART_INSTALL/
+      # tutorials/ is NOT bundled here - it is provided at runtime
+      # by the sc101-tutorials snap via the content interface.
+      # Create an empty mount-point directory for snapd to bind-mount into.
+      mkdir -p $CRAFT_PART_INSTALL/tutorials
+      chmod +x $CRAFT_PART_INSTALL/snap-start.sh
+      
+      # Copy node binary and dependencies
+      mkdir -p $CRAFT_PART_INSTALL/usr/bin
+      cp /usr/bin/node $CRAFT_PART_INSTALL/usr/bin/
+      
+      # Copy required libraries
+      mkdir -p $CRAFT_PART_INSTALL/usr/lib
+      ldd /usr/bin/node | grep "=>" | awk '{print $3}' | xargs -I '{}' cp -v '{}' $CRAFT_PART_INSTALL/usr/lib/ 2>/dev/null || true
+      
+      # Copy additional Node.js libraries
+      if [ -d /usr/lib/x86_64-linux-gnu ]; then
+        cp -r /usr/lib/x86_64-linux-gnu/libnode* $CRAFT_PART_INSTALL/usr/lib/ 2>/dev/null || true
+        cp -r /usr/lib/x86_64-linux-gnu/libicu* $CRAFT_PART_INSTALL/usr/lib/ 2>/dev/null || true
+        cp -r /usr/lib/x86_64-linux-gnu/libssl* $CRAFT_PART_INSTALL/usr/lib/ 2>/dev/null || true
+        cp -r /usr/lib/x86_64-linux-gnu/libcrypto* $CRAFT_PART_INSTALL/usr/lib/ 2>/dev/null || true
+      fi
+
+plugs:
+  sc101-tutorials:
+    interface: content
+    content: sc101-tutorials-v1
+    target: $SNAP/tutorials
+    # default-provider: sc101-tutorials
+    # (enable once sc101-tutorials is published to the snap store)
+
+apps:
+  sc101-lab-interface:
+    command: snap-start.sh
+    daemon: simple
+    plugs:
+      - network
+      - network-bind
+      - lxd
+      - sc101-tutorials
+    environment:
+      NODE_ENV: production
+      PATH: $SNAP/usr/bin:$PATH
+      NODE_PATH: $SNAP/backend/node_modules
+      SNAP_DATA: $SNAP_DATA
+      LD_LIBRARY_PATH: $SNAP/usr/lib:$LD_LIBRARY_PATH
+
+  backend:
+    command: usr/bin/node $SNAP/backend/server.js
+    plugs:
+      - network
+      - network-bind
+      - lxd
+      - sc101-tutorials
+    environment:
+      NODE_ENV: production
+      PATH: $SNAP/usr/bin:$PATH
+      NODE_PATH: $SNAP/backend/node_modules
+      SNAP_DATA: $SNAP_DATA
+      LD_LIBRARY_PATH: $SNAP/usr/lib:$LD_LIBRARY_PATH

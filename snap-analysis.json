@@ -1,0 +1,92 @@
+{
+  "schema_version": "1.0",
+  "project": {
+    "name": "sc101-lab-interface",
+    "version": "0.1.0",
+    "summary": "Interactive learning platform with live terminal via LXD",
+    "description": "A KillerCoda-style interactive learning platform that provides\nmarkdown-based tutorials with live terminal sessions powered by LXD containers.\nFeatures include multi-user sessions, teacher-student terminal sharing,\nand real-time collaboration.",
+    "license": "ISC",
+    "grade": "stable"
+  },
+  "snap": {
+    "base": "core24",
+    "confinement": "strict",
+    "classic_reason": null
+  },
+  "build": {
+    "plugin": "nil",
+    "plugin_config": {},
+    "build_packages": [
+      "build-essential",
+      "python3",
+      "curl",
+      "git"
+    ],
+    "stage_packages": [
+      "nodejs"
+    ],
+    "override_build_extra": "# Install Node.js 20.x via NodeSource\ncurl -fsSL https://deb.nodesource.com/setup_20.x | bash -\napt-get install -y nodejs\n\n# Build frontend\ncd frontend\nnpm ci\nnpm run build\ncd ..\n\n# Install backend dependencies\ncd backend\nnpm ci --omit=dev\ncd ..\n\n# Copy built files to install location\ncp -r backend $CRAFT_PART_INSTALL/\ncp -r frontend/dist $CRAFT_PART_INSTALL/frontend\ncp -r tutorials $CRAFT_PART_INSTALL/\ncp start.sh $CRAFT_PART_INSTALL/\nchmod +x $CRAFT_PART_INSTALL/start.sh"
+  },
+  "apps": [
+    {
+      "name": "sc101-lab-interface",
+      "command": "start.sh",
+      "daemon": "simple",
+      "plugs": [
+        "network",
+        "network-bind",
+        "lxd"
+      ],
+      "environment": {
+        "NODE_ENV": "production",
+        "PATH": "$SNAP/usr/bin:$SNAP/bin:$PATH",
+        "NODE_PATH": "$SNAP/backend/node_modules"
+      }
+    },
+    {
+      "name": "backend",
+      "command": "backend/node_modules/.bin/node backend/server.js",
+      "daemon": null,
+      "plugs": [
+        "network",
+        "network-bind",
+        "lxd"
+      ],
+      "environment": {
+        "NODE_ENV": "production",
+        "NODE_PATH": "$SNAP/backend/node_modules"
+      }
+    }
+  ],
+  "hooks": [
+    "install"
+  ],
+  "layouts": {},
+  "interfaces": [
+    {
+      "name": "network",
+      "apps": ["sc101-lab-interface", "backend"],
+      "auto_connected": true,
+      "reason": "Required for WebSocket connections and API requests"
+    },
+    {
+      "name": "network-bind",
+      "apps": ["sc101-lab-interface", "backend"],
+      "auto_connected": true,
+      "reason": "Backend server listens on port 3001, frontend dev server on 5173"
+    },
+    {
+      "name": "lxd",
+      "apps": ["sc101-lab-interface", "backend"],
+      "auto_connected": false,
+      "reason": "Required to manage LXD containers for terminal sessions"
+    }
+  ],
+  "notes": [
+    "The application requires the LXD snap to be installed and initialized on the host system",
+    "The 'lxd' interface must be manually connected after installation: sudo snap connect sc101-lab-interface:lxd lxd:lxd",
+    "Frontend is pre-built during snap creation and served as static files",
+    "The start.sh script manages both backend and frontend processes as a single daemon",
+    "Session data is stored in $SNAP_DATA/sessions.json"
+  ]
+}

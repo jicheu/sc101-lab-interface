@@ -40,8 +40,11 @@ function deduplicateParticipants(session) {
 
 function list() {
   const sessions = load()
-  // Clean up duplicates on load
-  return Object.values(sessions).map(deduplicateParticipants)
+  // Filter out any malformed entries (e.g. keys whose value is not a session
+  // object with an id field — guards against legacy "sessions":[] corruption).
+  return Object.values(sessions)
+    .filter((v) => v && typeof v === 'object' && typeof v.id === 'string')
+    .map(deduplicateParticipants)
 }
 
 function get(id) {

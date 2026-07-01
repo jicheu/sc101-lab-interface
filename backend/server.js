@@ -7,15 +7,32 @@ const path = require('path')
 const fs = require('fs')
 const pty = require('node-pty')
 const { execFile } = require('child_process')
-const { ensureContainerForUser, stopAllContainers, stopContainer, destroyContainer, onConnect, onDisconnect, SESSION_EXPIRY_MS } = require('./lxd')
+const { ensureContainerForUser, stopAllContainers, stopContainer, destroyContainer, onConnect, onDisconnect, SESSION_EXPIRY_MS, lxdExecPty } = require('./lxd')
 const sessions = require('./sessions')
 
 const matter = require('gray-matter')
 
 const PORT = 3001
-// Tutorials live in the top-level tutorials/ folder so contributors can
-// add new ones without touching the backend source.
-const TUTORIALS_DIR = path.join(__dirname, '..', 'tutorials')
+// Tutorials directory resolution (in priority order):
+//   1. $SNAP_COMMON/tutorials  — user-editable override (writable, survives snap updates)
+//   2. $SNAP/tutorials          — content interface mount from sc101-tutorials snap
+//   3. <repo-root>/tutorials    — development fallback (non-snap usage)
+function resolveTutorialsDir() {
+  if (process.env.SNAP_COMMON) {
+    const override = path.join(process.env.SNAP_COMMON, 'tutorials')
+    if (fs.existsSync(override)) {
+      console.log(`[tutorials] Using user override: ${override}`)
+      return override
+    }
+  }
+  if (process.env.SNAP) {
+    const snapMount = path.join(process.env.SNAP, 'tutorials')
+    console.log(`[tutorials] Using content interface mount: ${snapMount}`)
+    return snapMount
+  }
+  return path.join(__dirname, '..', 'tutorials')
+}
+const TUTORIALS_DIR = resolveTutorialsDir()
 
 // Parse a tutorial's index.md and return { id, title, description,
 // difficulty, time, tags, environment, steps, body, course }
@@ -128,6 +145,13 @@ function listTutorials() {
 
 const app = express()
 app.use(express.json())
+
+// Serve frontend static files when running as a snap
+if (process.env.SNAP) {
+  const frontendPath = path.join(process.env.SNAP, 'frontend')
+  console.log(`[server] Serving frontend from: ${frontendPath}`)
+  app.use(express.static(frontendPath))
+}
 
 // ── Session API ───────────────────────────────────────────────────────────────
 
@@ -885,13 +909,9 @@ wss.on('connection', async (ws, req) => {
       return
     }
 
-    // Spawn PTY once for this container
-    const shell = pty.spawn('lxc', ['exec', containerName, '--', 'bash', '--login'], {
-      name: 'xterm-256color',
-      cols: 80,
-      rows: 24,
-      env: { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor' },
-    })
+    // Spawn PTY once for this container via LXD exec WebSocket API
+    // (lxc binary is not accessible under snap strict confinement)
+    const shell = lxdExecPty(containerName, { cols: 80, rows: 24 })
 
     shared = {
       pty: shell,
@@ -1083,6 +1103,18 @@ function runTeacherTimeout() {
   }
 }
 setInterval(runTeacherTimeout, TEACHER_CHECK_INTERVAL).unref()
+
+// Catch-all route for client-side routing when running as snap
+if (process.env.SNAP) {
+  app.use((req, res, next) => {
+    if (!req.path.startsWith('/api') && !req.path.startsWith('/ws')) {
+      const frontendPath = path.join(process.env.SNAP, 'frontend')
+      res.sendFile(path.join(frontendPath, 'index.html'))
+    } else {
+      next()
+    }
+  })
+}
 
 // Route WebSocket upgrades manually so Express never touches the WS socket
 server.on('upgrade', (req, socket, head) => {

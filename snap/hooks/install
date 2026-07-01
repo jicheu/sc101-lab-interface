@@ -1,0 +1,13 @@
+#!/bin/bash
+set -e
+
+# Create directories for session data
+mkdir -p $SNAP_DATA/data
+
+# Initialize empty sessions file if not exists
+if [ ! -f "$SNAP_DATA/data/sessions.json" ]; then
+    echo '{"sessions":[]}' > "$SNAP_DATA/data/sessions.json"
+fi
+
+# Set proper permissions
+chmod 600 "$SNAP_DATA/data/sessions.json"

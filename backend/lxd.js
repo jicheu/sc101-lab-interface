@@ -1,6 +1,9 @@
 'use strict'
 
-const { spawnSync } = require('child_process')
+const http = require('http')
+
+// LXD Unix socket — accessible via the lxd interface
+const LXD_SOCKET = '/var/snap/lxd/common/lxd/unix.socket'
 
 // Grace period before stopping an idle container (ms)
 const IDLE_STOP_DELAY = 5 * 60_000   // 5 minutes
@@ -13,83 +16,144 @@ const activeConnections = new Map()
 // Pending stop timers: containerName → timeoutId
 const stopTimers = new Map()
 
-function run(args) {
-  const result = spawnSync('lxc', args, { encoding: 'utf8' })
-  if (result.error) throw result.error
-  if (result.status !== 0) {
-    const err = new Error((result.stderr || result.stdout || `lxc ${args.join(' ')} failed`).trim())
-    err.status = result.status
-    throw err
-  }
-  return result.stdout.trim()
+// ── LXD REST API helpers ──────────────────────────────────────────────────────
+
+function lxdRequest(method, path, body) {
+  return new Promise((resolve, reject) => {
+    const payload = body ? JSON.stringify(body) : null
+    const options = {
+      socketPath: LXD_SOCKET,
+      path,
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(payload ? { 'Content-Length': Buffer.byteLength(payload) } : {}),
+      },
+    }
+    const req = http.request(options, (res) => {
+      let data = ''
+      res.on('data', (chunk) => { data += chunk })
+      res.on('end', () => {
+        try { resolve(JSON.parse(data)) }
+        catch { resolve({ statusCode: res.statusCode, raw: data }) }
+      })
+    })
+    req.on('error', reject)
+    if (payload) req.write(payload)
+    req.end()
+  })
 }
 
-function containerRunning(name) {
-  // lxc list/info/query all return empty stdout from node (snap pipe/TTY bug).
-  // lxc exec -- true: exit 0 = running, non-0 = stopped or non-existent.
-  const r = spawnSync('lxc', ['exec', name, '--', 'true'], { encoding: 'utf8' })
-  return r.status === 0
-}
-
-function containerExists(name) {
-  // If running, it exists.
-  if (containerRunning(name)) return true
-  // Try to start it — exit 0 means it existed but was stopped.
-  // Any failure means it doesn't exist (or some other error, treated as non-existent).
-  const s = spawnSync('lxc', ['start', name], { encoding: 'utf8' })
-  if (s.status === 0) {
-    // Existed and we just started it — stop it so ensureContainerForUser controls the lifecycle
-    spawnSync('lxc', ['stop', '--force', name], { encoding: 'utf8' })
-    return true
+// Wait for an async LXD operation to complete
+async function waitOperation(opUrl, timeoutSec = 60) {
+  const waitPath = `${opUrl}/wait?timeout=${timeoutSec}`
+  const res = await lxdRequest('GET', waitPath)
+  if (res.metadata && res.metadata.status === 'Failure') {
+    throw new Error(`LXD operation failed: ${res.metadata.err}`)
   }
-  return false
+  return res
 }
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+// ── Container state helpers ───────────────────────────────────────────────────
+
+async function getContainerState(name) {
+  const res = await lxdRequest('GET', `/1.0/instances/${name}/state`)
+  if (res.error_code === 404 || res.status_code === 404) return null
+  return res.metadata || null
+}
+
+async function containerRunning(name) {
+  try {
+    const state = await getContainerState(name)
+    return state !== null && state.status === 'Running'
+  } catch { return false }
+}
+
+async function containerExists(name) {
+  try {
+    const state = await getContainerState(name)
+    return state !== null
+  } catch { return false }
+}
+
+// ── Container lifecycle ───────────────────────────────────────────────────────
+
+async function startContainer(name) {
+  const res = await lxdRequest('PUT', `/1.0/instances/${name}/state`, {
+    action: 'start', timeout: 30, force: false,
+  })
+  if (res.type === 'async') {
+    await waitOperation(res.operation, 30)
+  } else if (res.error_code && res.error_code !== 0) {
+    throw new Error(res.error || 'start failed')
+  }
+}
+
+async function stopContainerApi(name, force = true) {
+  const res = await lxdRequest('PUT', `/1.0/instances/${name}/state`, {
+    action: 'stop', timeout: 10, force,
+  })
+  if (res.type === 'async') {
+    try { await waitOperation(res.operation, 15) } catch {}
+  }
+}
+
+async function createContainer(name) {
+  const res = await lxdRequest('POST', '/1.0/instances', {
+    name,
+    architecture: 'x86_64',
+    profiles: ['default'],
+    source: {
+      type: 'image',
+      protocol: 'simplestreams',
+      server: 'https://cloud-images.ubuntu.com/releases',
+      alias: '24.04',
+    },
+  })
+  if (res.type === 'async') {
+    await waitOperation(res.operation, 120)
+  } else if (res.error_code && res.error_code !== 0) {
+    throw new Error(res.error || 'create failed')
+  }
+}
+
 // In-flight start promises: prevent concurrent starts for the same container
 const startingContainers = new Map()
 
 async function ensureContainerForUser(containerName) {
-  // If already being started by another concurrent WS connection, wait for it
   if (startingContainers.has(containerName)) {
     await startingContainers.get(containerName)
     return
   }
 
-  if (containerRunning(containerName)) {
+  if (await containerRunning(containerName)) {
     console.log(`[lxd] Container ${containerName} already running.`)
     return
   }
 
   const startPromise = (async () => {
-    // Try lxc start first — succeeds if container exists but is stopped.
-    // If it fails, assume the container doesn't exist yet and launch it.
     console.log(`[lxd] Starting container ${containerName}…`)
-    const startR = spawnSync('lxc', ['start', containerName], { encoding: 'utf8' })
-    if (startR.status !== 0) {
-      // Container doesn't exist — create and start in one step.
-      // Note: lxc launch exits 1 from node (snap pipe/TTY bug) even on success,
-      // so we ignore the exit code and verify with containerRunning() afterwards.
-      console.log(`[lxd] Container ${containerName} not found, launching…`)
-      spawnSync('lxc', ['launch', 'ubuntu:24.04', containerName], { encoding: 'utf8' })
-      // Wait up to 15s for the container to reach RUNNING state
-      for (let i = 0; i < 15; i++) {
-        await sleep(1000)
-        if (containerRunning(containerName)) break
-      }
-      console.log(`[lxd] Container ${containerName} created.`)
+
+    if (await containerExists(containerName)) {
+      await startContainer(containerName)
     } else {
-      // Existing container starting — wait up to 5s
-      for (let i = 0; i < 5; i++) {
-        await sleep(1000)
-        if (containerRunning(containerName)) break
-      }
+      console.log(`[lxd] Container ${containerName} not found, creating…`)
+      await createContainer(containerName)
+      console.log(`[lxd] Container ${containerName} created, starting…`)
+      await startContainer(containerName)
     }
-    // Final check
-    if (!containerRunning(containerName)) {
+
+    // Poll up to 15s for exec-readiness after start
+    for (let i = 0; i < 15; i++) {
+      if (await containerRunning(containerName)) break
+      await sleep(1000)
+    }
+
+    if (!(await containerRunning(containerName))) {
       throw new Error(`Container ${containerName} failed to reach RUNNING state`)
     }
     console.log(`[lxd] Container ${containerName} ready.`)
@@ -103,42 +167,47 @@ async function ensureContainerForUser(containerName) {
   }
 }
 
-function stopContainer(name) {
-  if (containerRunning(name)) {
+async function stopContainer(name) {
+  if (await containerRunning(name)) {
     console.log(`[lxd] Stopping idle container ${name}…`)
-    try { run(['stop', '--force', name]) } catch (e) { console.error(`[lxd] Stop failed: ${e.message}`) }
+    try { await stopContainerApi(name, true) } catch (e) {
+      console.error(`[lxd] Stop failed: ${e.message}`)
+    }
   }
 }
 
-function destroyContainer(name) {
-  if (!containerExists(name)) return
+async function destroyContainer(name) {
+  if (!(await containerExists(name))) return
   console.log(`[lxd] Destroying container ${name}…`)
   try {
-    if (containerRunning(name)) run(['stop', '--force', name])
-    run(['delete', name])
+    if (await containerRunning(name)) await stopContainerApi(name, true)
+    const res = await lxdRequest('DELETE', `/1.0/instances/${name}`)
+    if (res.type === 'async') await waitOperation(res.operation, 30)
     console.log(`[lxd] Container ${name} destroyed.`)
   } catch (e) {
     console.error(`[lxd] Destroy failed: ${e.message}`)
   }
 }
 
-// Stop all sc101-* containers — called once at startup so we start clean
-function stopAllContainers() {
+// Stop all sc101-* containers — called once at startup
+async function stopAllContainers() {
   try {
-    const out = run(['list', '--format', 'csv', '-c', 'n,s'])
-    for (const line of out.split('\n')) {
-      const [name, state] = line.split(',')
-      if (name && name.startsWith('sc101-') && state && state.trim() === 'RUNNING') {
-        console.log(`[lxd] Stopping container ${name} on startup…`)
-        try { run(['stop', '--force', name]) } catch {}
+    const res = await lxdRequest('GET', '/1.0/instances?recursion=1')
+    const instances = res.metadata || []
+    for (const inst of instances) {
+      if (inst.name && inst.name.startsWith('sc101-') && inst.status === 'Running') {
+        console.log(`[lxd] Stopping container ${inst.name} on startup…`)
+        try { await stopContainerApi(inst.name, true) } catch {}
       }
     }
-  } catch {}
+  } catch (e) {
+    console.error(`[lxd] stopAllContainers error: ${e.message}`)
+  }
 }
 
-// Called when a WebSocket connects to a container
+// ── Connection tracking ───────────────────────────────────────────────────────
+
 function onConnect(containerName) {
-  // Cancel any pending idle stop
   if (stopTimers.has(containerName)) {
     clearTimeout(stopTimers.get(containerName))
     stopTimers.delete(containerName)
@@ -146,7 +215,6 @@ function onConnect(containerName) {
   activeConnections.set(containerName, (activeConnections.get(containerName) || 0) + 1)
 }
 
-// Called when a WebSocket disconnects from a container
 function onDisconnect(containerName) {
   const count = Math.max(0, (activeConnections.get(containerName) || 1) - 1)
   activeConnections.set(containerName, count)
@@ -161,3 +229,166 @@ function onDisconnect(containerName) {
 }
 
 module.exports = { ensureContainerForUser, stopAllContainers, stopContainer, destroyContainer, onConnect, onDisconnect, SESSION_EXPIRY_MS }
+
+// ── Interactive exec via LXD WebSocket ────────────────────────────────────────
+// Replaces pty.spawn('lxc', ['exec', name, '--', 'bash', '--login'])
+// Returns an EventEmitter-like object with the same API as node-pty:
+//   .onData(cb)   — cb(data: string)
+//   .onExit(cb)   — cb({ exitCode })
+//   .write(data)  — send input
+//   .resize(cols, rows)
+//   .kill()
+
+const net = require('net')
+const crypto = require('crypto')
+const EventEmitter = require('events')
+
+function lxdExecPty(containerName, { cols = 80, rows = 24 } = {}) {
+  const emitter = new EventEmitter()
+  let controlWs = null
+  let ioWs = null
+  let exited = false
+
+  // POST to /1.0/instances/<name>/exec to get operation + secrets
+  lxdRequest('POST', `/1.0/instances/${containerName}/exec`, {
+    command: ['bash', '--login'],
+    environment: { TERM: 'xterm-256color', COLORTERM: 'truecolor' },
+    'wait-for-websocket': true,
+    interactive: true,
+    width: cols,
+    height: rows,
+  }).then((res) => {
+    if (!res.metadata || !res.metadata.metadata) {
+      emitter.emit('exit-internal', 1)
+      return
+    }
+    const opId   = res.operation          // e.g. /1.0/operations/<uuid>
+    const fds    = res.metadata.metadata.fds  // { '0': secret, 'control': secret }
+    const ioSecret  = fds['0']
+    const ctlSecret = fds['control']
+
+    const uuid = opId.replace('/1.0/operations/', '')
+
+    // Connect the I/O websocket
+    ioWs = connectLxdWs(uuid, ioSecret, (data) => {
+      // data is a Buffer from the socket
+      if (Buffer.isBuffer(data)) {
+        emitter.emit('data', data.toString('binary'))
+      }
+    }, () => {
+      if (!exited) { exited = true; emitter.emit('exit-internal', 0) }
+    })
+
+    // Connect the control websocket (for resize + signals)
+    controlWs = connectLxdWs(uuid, ctlSecret, () => {}, () => {})
+
+  }).catch((err) => {
+    emitter.emit('error', err)
+  })
+
+  // Low-level raw socket WS connection to LXD unix socket
+  function connectLxdWs(opUuid, secret, onMessage, onClose) {
+    const path = `/1.0/operations/${opUuid}/websocket?secret=${secret}`
+    const key  = crypto.randomBytes(16).toString('base64')
+    const handshake = [
+      `GET ${path} HTTP/1.1`,
+      `Host: localhost`,
+      `Upgrade: websocket`,
+      `Connection: Upgrade`,
+      `Sec-WebSocket-Key: ${key}`,
+      `Sec-WebSocket-Version: 13`,
+      '',
+      '',
+    ].join('\r\n')
+
+    const sock = net.createConnection(LXD_SOCKET)
+    let upgraded = false
+    let buf = Buffer.alloc(0)
+
+    sock.on('connect', () => sock.write(handshake))
+    sock.on('data', (chunk) => {
+      if (!upgraded) {
+        buf = Buffer.concat([buf, chunk])
+        const sep = buf.indexOf('\r\n\r\n')
+        if (sep === -1) return
+        upgraded = true
+        buf = buf.slice(sep + 4)  // remaining bytes after headers
+        if (buf.length) parseFrames(buf)
+        buf = Buffer.alloc(0)
+        return
+      }
+      parseFrames(chunk)
+    })
+    sock.on('close', onClose)
+    sock.on('error', () => {})
+
+    function parseFrames(data) {
+      let offset = 0
+      while (offset < data.length) {
+        if (data.length - offset < 2) break
+        const b0 = data[offset], b1 = data[offset + 1]
+        const opcode = b0 & 0x0f
+        const masked  = (b1 & 0x80) !== 0
+        let payloadLen = b1 & 0x7f
+        let headerLen = 2
+        if (payloadLen === 126) { if (data.length - offset < 4) break; payloadLen = data.readUInt16BE(offset + 2); headerLen = 4 }
+        else if (payloadLen === 127) { if (data.length - offset < 10) break; payloadLen = Number(data.readBigUInt64BE(offset + 2)); headerLen = 10 }
+        if (masked) headerLen += 4
+        if (data.length - offset < headerLen + payloadLen) break
+        const payload = data.slice(offset + headerLen, offset + headerLen + payloadLen)
+        offset += headerLen + payloadLen
+        if (opcode === 0x8) { onClose(); return }  // close frame
+        if (opcode === 0x1 || opcode === 0x2) onMessage(payload)
+      }
+    }
+
+    function send(data) {
+      if (!upgraded || sock.destroyed) return
+      const payload = Buffer.isBuffer(data) ? data : Buffer.from(data, 'binary')
+      const frame = encodeWsFrame(payload)
+      sock.write(frame)
+    }
+
+    function close() { try { sock.destroy() } catch {} }
+
+    return { send, close }
+  }
+
+  function encodeWsFrame(payload) {
+    // Client frames must be masked
+    const len = payload.length
+    let headerLen = 2
+    if (len > 65535) headerLen += 8
+    else if (len > 125) headerLen += 2
+    const mask = crypto.randomBytes(4)
+    const header = Buffer.alloc(headerLen + 4)
+    header[0] = 0x82  // FIN + binary frame
+    let offset = 1
+    if (len > 65535) { header[offset++] = 0x80 | 127; header.writeBigUInt64BE(BigInt(len), offset); offset += 8 }
+    else if (len > 125) { header[offset++] = 0x80 | 126; header.writeUInt16BE(len, offset); offset += 2 }
+    else { header[offset++] = 0x80 | len }
+    mask.copy(header, offset)
+    const masked = Buffer.alloc(len)
+    for (let i = 0; i < len; i++) masked[i] = payload[i] ^ mask[i % 4]
+    return Buffer.concat([header, masked])
+  }
+
+  // Public node-pty-compatible API
+  const handle = {
+    onData: (cb) => { emitter.on('data', cb); return handle },
+    onExit: (cb) => { emitter.on('exit-internal', (code) => cb({ exitCode: code })); return handle },
+    write:  (data) => { if (ioWs) ioWs.send(data) },
+    resize: (cols, rows) => {
+      if (!controlWs) return
+      const msg = JSON.stringify({ command: 'window-resize', args: { width: String(cols), height: String(rows) } })
+      controlWs.send(msg)
+    },
+    kill:   () => {
+      if (ioWs) ioWs.close()
+      if (controlWs) controlWs.close()
+    },
+  }
+  return handle
+}
+
+module.exports.lxdExecPty = lxdExecPty

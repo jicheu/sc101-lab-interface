@@ -1,0 +1,31 @@
+name: sc101-tutorials
+version: '0.1.0'
+summary: SC101 Lab Interface tutorial content pack
+description: |
+  Tutorial content for the SC101 Lab Interface platform.
+  Contains markdown-based interactive tutorials covering snap packaging,
+  Ubuntu Core, and related topics.
+  Install alongside sc101-lab-interface and connect with:
+    sudo snap connect sc101-lab-interface:sc101-tutorials sc101-tutorials:sc101-tutorials
+license: CC-BY-SA-4.0
+grade: stable
+confinement: strict
+base: core24
+
+parts:
+  tutorials:
+    plugin: dump
+    # Source is the tutorials/ subdirectory which contains course folders.
+    # Contents land at $SNAP/ so we organize them under tutorials/ to get:
+    #   $SNAP/tutorials/<courseDir>/<tutorialDir>
+    # matching the two-level structure the backend expects.
+    source: tutorials
+    organize:
+      '*': tutorials/
+
+slots:
+  sc101-tutorials:
+    interface: content
+    content: sc101-tutorials-v1
+    read:
+      - $SNAP/tutorials
