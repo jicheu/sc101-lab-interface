@@ -15,6 +15,10 @@ of snap packages (platform + content). It grew from a single-user prototype into
 multi-user, teacher/student-capable platform with AI-assisted tutorial authoring, over
 **~95 commits** and **35 documented build phases** (see [`genesis.md`](./genesis.md)).
 
+
+The project allows users to replay labs as many times as possible, at their own pace.
+Tutorials production is streamlined, a simple google doc can generate a set of labs with dependencies, with improved "academy" tracking.
+
 ---
 
 ## 2. Challenges encountered
