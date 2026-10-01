@@ -1,4 +1,5 @@
 {
+  "__note": "HISTORICAL SNAPSHOT from initial snap packaging (Jun 2025). Superseded by snap/snapcraft.yaml and the snap-packaging capability spec at openspec/specs/snap-packaging/spec.md. Retained for provenance only.",
   "schema_version": "1.0",
   "project": {
     "name": "sc101-lab-interface",
