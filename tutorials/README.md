@@ -1,16 +1,25 @@
 # SC101 Tutorials
 
-This folder contains all tutorials served by the SC101 Lab Interface.  
-Each tutorial is a sub-folder with an `index.md` manifest and one `stepN.md` file per step.
+This folder contains the tutorials served by the SC101 Lab Interface in
+development. Tutorials are organized as a two-level hierarchy:
+`tutorials/<Course>/<tutorial-id>/`.
+
+This document is a friendly authoring guide. The normative format is the
+[tutorial-format spec](../openspec/specs/tutorial-format/spec.md).
+Authoring conventions (official-references rule, atomic steps, printf-not-heredoc
+for tabs, etc.) live in [INSTRUCTIONS.md](./INSTRUCTIONS.md).
 
 ---
 
 ## Adding a new tutorial
 
-1. Create a folder: `tutorials/<your-tutorial-id>/`
-2. Add an `index.md` (see format below)
-3. Add `step1.md`, `step2.md`, … (one per step)
-4. Restart the backend — it auto-discovers tutorials at startup
+1. Pick or create a course folder: `tutorials/<Course_Name>/` (use underscores
+   for spaces — the UI renders `_` back to space in display names).
+2. Create the tutorial folder: `tutorials/<Course_Name>/<your-tutorial-id>/`.
+3. Add an `index.md` (see format below).
+4. Add `step1.md`, `step2.md`, … (one per step).
+5. Reload the tutorial selector — the backend re-reads the tutorials directory
+   on every list request; no restart needed.
 
 No code changes required.
 
@@ -20,7 +29,7 @@ No code changes required.
 
 ```markdown
 ---
-id: my-tutorial              # must match the folder name
+id: my-tutorial              # must match the tutorial folder name
 title: "My Tutorial Title"
 description: >
   One or two sentences shown on the tutorial selection screen.
@@ -52,13 +61,19 @@ This paragraph is shown on the tutorial selection screen.
 It supports full Markdown.
 ```
 
+> The `environment` block is currently metadata-only — the platform preserves it
+> and exposes it to consumers, but does not (yet) provision containers from it.
+> See the tutorial-format spec for details.
+
 ---
 
 ## `stepN.md` format
 
 ```markdown
 ---
-title: "Step title"          # required — shown in the nav bar
+title: "Step title"          # optional; ignored by the platform.
+                             # The nav bar title comes from index.md's
+                             # steps[].title.
 ---
 
 Step content in standard Markdown.
@@ -85,14 +100,15 @@ Add the `run` annotation to a fenced code block to show a ▶ Run button:
 
 ```
 tutorials/
-└── hello-snap/
-    ├── index.md        ← manifest (metadata + environment + steps list)
-    ├── step1.md
-    ├── step2.md
-    ├── step3.md
-    ├── step4.md
-    ├── step5.md
-    ├── step6.md
-    └── assets/         ← optional images referenced in steps
-        └── diagram.png
+└── SC101_Lab_Interface_playground/          ← course folder
+    └── hello-snap/                          ← tutorial folder
+        ├── index.md        ← manifest (metadata + environment + steps list)
+        ├── step1.md
+        ├── step2.md
+        ├── step3.md
+        ├── step4.md
+        ├── step5.md
+        ├── step6.md
+        └── assets/         ← optional images referenced in steps
+            └── diagram.png
 ```

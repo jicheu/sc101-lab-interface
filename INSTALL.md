@@ -1,7 +1,14 @@
 # SC101 Lab Interface — Snap Installation Guide
 
-This guide covers installing SC101 Lab Interface from pre-built snap packages.  
-For building from source, see [SNAP_PACKAGING.md](./SNAP_PACKAGING.md).
+This guide covers installing SC101 Lab Interface from pre-built snap packages.
+
+- For building the snaps from source, see [SNAP_PACKAGING.md](./SNAP_PACKAGING.md).
+- For hacking on the platform without the snap, see [HACKING.md](./HACKING.md).
+- For the tutorial format specification, see
+  [`openspec/specs/tutorial-format/spec.md`](./openspec/specs/tutorial-format/spec.md).
+- For the operator-facing packaging contract (two-snap layout, interface
+  requirements, session persistence, content-swap semantics), see
+  [`openspec/specs/snap-packaging/spec.md`](./openspec/specs/snap-packaging/spec.md).
 
 ---
 
@@ -75,8 +82,8 @@ sudo snap install sc101-lab-interface
 
 ### Step 3 — Connect the interfaces
 
-Two interfaces must be connected manually (they are not auto-connected
-because the snaps are from a third-party publisher):
+Two interfaces must be connected manually (see the `snap-packaging` spec's
+*Interface connections* requirement for the auto- vs manual-connect model):
 
 ```bash
 # Allow the platform to manage LXD containers
@@ -166,8 +173,8 @@ sudo snap refresh sc101-lab-interface
 sudo snap refresh sc101-tutorials
 ```
 
-The platform daemon does **not** need to restart after refreshing the tutorials snap —
-tutorials are read from disk on every API request.
+The platform daemon does **not** need to restart after refreshing the tutorials snap.
+The spec's *Two-snap distribution* content-swap scenario captures this guarantee.
 
 ---
 
@@ -219,7 +226,9 @@ Changes are visible immediately — no snap rebuild or restart needed.
 ## Uninstalling
 
 ```bash
-# Remove the platform (keeps session data by default)
+# Remove the platform (keeps session data by default — see the
+# snap-packaging spec's *Session persistence across snap refresh*
+# requirement for the persistence contract)
 sudo snap remove sc101-lab-interface
 
 # Remove the tutorials content

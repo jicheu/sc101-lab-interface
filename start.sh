@@ -1,47 +1,25 @@
 #!/bin/bash
+#
+# SC101 Lab Interface - dev launcher
+#
+# Runs the backend and the Vite frontend dev server in parallel.
+# Ctrl-C (SIGINT), SIGTERM, or normal exit stops both children.
+#
+# For prerequisites, ports, and everything else about developing on this
+# platform, see HACKING.md.
 
-# SC101 Lab Interface - Start Script
-# Launches both backend and frontend servers
+set -u
 
-echo "🚀 Starting SC101 Lab Interface..."
-
-# Kill any existing instances
-pkill -f "node server.js" 2>/dev/null
-pkill -f "vite" 2>/dev/null
-
-# Wait for cleanup
-sleep 1
-
-# Function to handle cleanup on exit
+# Kill every child in this shell's process group on exit or signal.
+# `kill 0` targets the process group (of which this script is the leader),
+# so backgrounded `npm run dev:*` and everything they spawned go down together.
 cleanup() {
-    echo -e "\n\n🛑 Shutting down..."
-    pkill -f "node server.js" 2>/dev/null
-    pkill -f "vite" 2>/dev/null
-    exit 0
+    trap - INT TERM EXIT
+    kill 0 2>/dev/null || true
 }
+trap cleanup INT TERM EXIT
 
-# Set up trap for Ctrl+C
-trap cleanup SIGINT SIGTERM
+npm run dev:backend &
+npm run dev:frontend &
 
-# Start backend server
-echo "📡 Starting backend server on port 3001..."
-cd backend
-node server.js &
-BACKEND_PID=$!
-
-# Wait for backend to be ready
-sleep 2
-
-# Start frontend dev server
-echo "🎨 Starting frontend dev server on port 5173..."
-cd ../frontend
-npm run dev &
-FRONTEND_PID=$!
-
-echo -e "\n✅ SC101 Lab Interface is running!"
-echo "   Backend:  http://localhost:3001"
-echo "   Frontend: http://localhost:5173"
-echo -e "\nPress Ctrl+C to stop both servers\n"
-
-# Wait for both processes
-wait $BACKEND_PID $FRONTEND_PID
+wait

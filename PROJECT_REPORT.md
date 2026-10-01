@@ -13,7 +13,7 @@ SC101 Lab Interface is a KillerCoda-style interactive learning platform: a two-p
 (Markdown tutorial + live terminal) backed by per-user LXD containers, distributed as a pair
 of snap packages (platform + content). It grew from a single-user prototype into a
 multi-user, teacher/student-capable platform with AI-assisted tutorial authoring, over
-**~95 commits** and **35 documented build phases** (see [`genesis.md`](./genesis.md)).
+**~95 commits** and **35 documented build phases** (see [`docs/genesis.md`](./docs/genesis.md)).
 
 
 The project allows users to replay labs as many times as possible, at their own pace.
@@ -26,7 +26,7 @@ Tutorials production is streamlined, a simple google doc can generate a set of l
 The project accumulated a long tail of subtle, hard-to-diagnose bugs, largely because it
 integrates several loosely-documented systems (React rendering timing, LXD's CLI/API
 behavior, snap confinement, and markdown-to-terminal command extraction). The full list with
-root causes and fixes is tracked in [`genesis.md` § Key technical decisions and pitfalls](./genesis.md#key-technical-decisions-and-pitfalls).
+root causes and fixes is tracked in [`docs/genesis.md` § Key technical decisions and pitfalls](./docs/genesis.md#key-technical-decisions-and-pitfalls).
 Highlights by category:
 
 ### Frontend/React timing bugs
@@ -115,12 +115,12 @@ This project was built end-to-end through conversational AI pair-programming (Gi
 Copilot / Claude), with the human directing scope and reviewing/steering fixes. Two distinct
 AI-usage patterns emerged:
 
-1. **AI as the builder** — nearly every phase in [`genesis.md`](./genesis.md) is a literal
+1. **AI as the builder** — nearly every phase in [`docs/genesis.md`](./docs/genesis.md) is a literal
    record of the instruction given to the AI agent and the resulting implementation,
    including root-cause explanations for regressions the AI introduced and then fixed. This
    file is explicitly designed to be **replayable** — it documents *rephrased* instructions
    that avoid the bugs hit the first time around, so the whole app could be rebuilt from
-   scratch by feeding `genesis.md` to an agent again.
+   scratch by feeding `docs/genesis.md` to an agent again.
 2. **AI as a content-authoring tool for tutorials** — rather than being a one-off usage of
    AI, tutorial creation itself was turned into a repeatable, portable AI skill:
    - [`tutorials/INSTRUCTIONS.md`](./tutorials/INSTRUCTIONS.md) — the authoritative rulebook
@@ -139,7 +139,7 @@ AI-usage patterns emerged:
    tutorial bundle without additional prompting.
 
 For the full, phase-by-phase record of every instruction and fix, see
-[`genesis.md`](./genesis.md).
+[`docs/genesis.md`](./docs/genesis.md).
 
 ---
 
@@ -240,11 +240,15 @@ This report intentionally does not duplicate usage instructions. See:
 
 | Topic | Document |
 |---|---|
-| Full phase-by-phase build history & pitfalls | [`genesis.md`](./genesis.md) |
-| Project overview, dev setup, tutorial format | [`README.md`](./README.md) |
+| Full phase-by-phase build history & pitfalls | [`docs/genesis.md`](./docs/genesis.md) |
+| User-visible changes going forward | [`CHANGELOG.md`](./CHANGELOG.md) |
+| Public project orientation | [`README.md`](./README.md) |
+| Developer setup and dev-loop | [`HACKING.md`](./HACKING.md) |
 | Installing from pre-built snaps | [`INSTALL.md`](./INSTALL.md) |
 | Building/packaging the snaps from source | [`SNAP_PACKAGING.md`](./SNAP_PACKAGING.md) |
-| Multi-user / teacher-student session testing | [`MULTIUSER_TESTING.md`](./MULTIUSER_TESTING.md) |
+| Multi-user / teacher-student session behavior | [`openspec/specs/teaching-sessions/spec.md`](./openspec/specs/teaching-sessions/spec.md) (spec), [`docs/manual-testing-recipes.md`](./docs/manual-testing-recipes.md) (recipes) |
+| Tutorial content format the platform reads | [`openspec/specs/tutorial-format/spec.md`](./openspec/specs/tutorial-format/spec.md) |
+| Snap distribution contract (operator-facing) | [`openspec/specs/snap-packaging/spec.md`](./openspec/specs/snap-packaging/spec.md) |
 | Tutorial authoring rules (human or AI) | [`tutorials/INSTRUCTIONS.md`](./tutorials/INSTRUCTIONS.md) |
 | Tutorial format/contributor guide | [`tutorials/README.md`](./tutorials/README.md) |
 | AI tutorial-authoring skill | [`.github/skills/create-lab/SKILL.md`](./.github/skills/create-lab/SKILL.md) |

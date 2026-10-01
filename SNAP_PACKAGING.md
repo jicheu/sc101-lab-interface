@@ -1,5 +1,12 @@
 # SC101 Lab Interface Snap Packaging Guide
 
+For installing from published snaps, see [INSTALL.md](./INSTALL.md).
+For hacking on the platform without a snap, see [HACKING.md](./HACKING.md).
+For the operator-facing packaging contract (two-snap layout, interface
+requirements, HTTP surface, session persistence, content-swap semantics),
+see
+[`openspec/specs/snap-packaging/spec.md`](./openspec/specs/snap-packaging/spec.md).
+
 ## Prerequisites
 
 1. **Install Snapcraft**:
@@ -74,9 +81,11 @@ sudo snap connect sc101-lab-interface:lxd lxd:lxd
 sudo snap connect sc101-lab-interface:sc101-tutorials sc101-tutorials:sc101-tutorials
 ```
 
-The `network` and `network-bind` interfaces are auto-connected.
+The `network` and `network-bind` interfaces are auto-connected; `lxd` and the
+content interface are manual. See the `snap-packaging` spec's *Interface
+connections* requirement for the full contract.
 
-> **Note:** If tutorials are not connected, the API returns an empty list `[]` — the platform still starts normally.
+> **Note:** If tutorials are not connected, the API returns an empty list `[]` — the platform still starts normally (per the spec's *Daemon starts without content interface* scenario).
 
 ## Running the Application
 
@@ -94,7 +103,9 @@ sudo snap restart sc101-lab-interface
 ```
 
 Access the application at:
-- Frontend + API: http://localhost:3001 (frontend is served as static files from the backend)
+- Frontend + API: http://localhost:3001 (frontend served from the backend
+  on the same port — see the spec's *HTTP and WebSocket surface* requirement
+  and its *No separate frontend process* scenario).
 
 You can also run the backend CLI directly:
 ```bash
@@ -125,7 +136,9 @@ sudo dmesg -w | grep DENIED
    snap connections sc101-lab-interface
    ```
 
-2. **Port conflicts**: If ports 3001 or 5173 are in use, stop conflicting services first.
+2. **Port conflicts**: If port 3001 is in use, stop the conflicting service first.
+   (Port 5173 is dev-only — the snap serves the built frontend from the backend
+   on 3001; there is no separate frontend process.)
 
 3. **Node.js module issues**: The snap includes Node.js 20.x and all dependencies are bundled.
 
@@ -153,7 +166,8 @@ sudo snap disconnect sc101-lab-interface:sc101-tutorials
 sudo snap connect sc101-lab-interface:sc101-tutorials my-tutorials-snap:sc101-tutorials
 ```
 
-Tutorials are read on every API request — no platform restart needed after swapping snaps.
+Tutorials are re-read on every API request; no platform restart needed after
+swapping snaps. See the spec's *Two-snap distribution* content-swap scenario.
 
 ## Submitting to the Snap Store
 
@@ -178,7 +192,11 @@ tutorials snap.
 ## Important Notes
 
 - The application requires the LXD snap to be installed and initialized on the host system
-- The 'lxd' interface must be manually connected after installation: `sudo snap connect sc101-lab-interface:lxd lxd:lxd`
-- Frontend is pre-built during snap creation and served as static files
+- The 'lxd' interface must be manually connected after installation:
+  `sudo snap connect sc101-lab-interface:lxd lxd:lxd`
+  (part of the *Interface connections* contract in the `snap-packaging` spec)
+- Frontend is pre-built during snap creation and served as static files by the
+  backend — see the *HTTP and WebSocket surface* requirement in the spec
 - The start.sh script manages both backend and frontend processes as a single daemon
-- Session data is stored in $SNAP_DATA/sessions.json
+- Session data is stored in $SNAP_DATA/sessions.json and survives snap refresh
+  (see the *Session persistence across snap refresh* requirement in the spec)
